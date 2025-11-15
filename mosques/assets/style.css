@@ -1,0 +1,265 @@
+/* Embedded Tajawal Font - Updated: 2025-11-15 19:30 */
+/* arabic */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/tajawal/v12/Iura6YBj_oCad4k1nzSBC45I.woff2) format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1;
+}
+/* latin */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/tajawal/v12/Iura6YBj_oCad4k1nzGBCw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* arabic */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/tajawal/v12/Iurf6YBj_oCad4k1l4qkHrRpiYlJ.woff2) format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1;
+}
+/* latin */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/tajawal/v12/Iurf6YBj_oCad4k1l4qkHrFpiQ.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html, body,
+.stApp,
+div[data-testid="stAppViewContainer"],
+div[data-testid="stVerticalBlock"],
+div[data-testid="stHorizontalBlock"],
+div[data-testid="block-container"] {
+  background-color: #faf8f3 !important;
+  color: #1a2f29 !important;
+}
+
+.stApp {
+  max-width: 2100px !important;
+  margin: 0 auto !important;
+}
+
+div[data-testid="block-container"] {
+  max-width: 2100px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+div[data-testid="column"],
+div[data-testid="column"] > div,
+div[class*="column"] {
+  background-color: #faf8f3 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.stHorizontalBlock {
+  gap: 8px !important;
+}
+
+.streamlit-folium,
+.streamlit-folium iframe,
+.folium-map,
+.leaflet-container,
+.streamlit-folium iframe body,
+.leaflet-container .leaflet-pane,
+.leaflet-map-pane {
+  background-color: #faf8f3 !important;
+}
+
+div[data-testid="column"]:has(.streamlit-folium) {
+  background-color: #faf8f3 !important;
+}
+
+section[data-testid="stSidebar"] { display: none !important; }
+html, body, [class*="css"], div[data-testid="stApp"] {
+  direction: rtl !important;
+  font-family: 'Tajawal', sans-serif !important;
+}
+* { font-family: 'Tajawal', sans-serif !important; }
+.stApp { background-color: #faf8f3 !important; }
+header[data-testid="stHeader"] { background-color: #faf8f3 !important; }
+.stApp > header { background-color: #faf8f3 !important; }
+.card {
+  background:#ffffff;
+  border:1px solid #e9f1ec;
+  border-radius:16px;
+  padding:14px;
+  box-shadow:0 2px 14px rgba(0,0,0,.04);
+}
+.divider { height:10px; }
+.kpi {
+  background:#faf8f3;
+  border-radius:12px;
+  padding:10px 0px;
+  text-align:center;
+  border:1px solid #e1d9c6;
+  box-shadow:0 1px 3px rgba(18,27,23,0.04);
+}
+.kpi .t {font-size:20px;color:#2b5d4a;}
+.kpi .v {font-size:24px;font-weight:900;color:#006c4b;}
+.kpi .v.red {color:#e74c3c;}
+.quarter-wrap {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+div[data-baseweb="select"] > div {
+  background: #e7f4ee !important;
+  border: 1px solid #cfe7dc !important;
+  border-radius: 12px !important;
+  padding: 6px 10px !important;
+  color: #1a2f29 !important;
+}
+div[data-baseweb="select"] input {
+  color: #1a2f29 !important;
+}
+div[data-baseweb="select"] div { min-height: 34px !important; }
+div[data-baseweb="select"] svg { transform: scale(0.9); }
+label[data-testid="stMarkdownContainer"] p {
+  margin-bottom: 6px !important;
+  font-size: 13px !important;
+}
+.tbl-controls small { color:#355f4f; }
+
+/* ======== TABLE LOOK ======== */
+.tbl-card {
+  background:transparent;
+  border:0;
+  border-radius:18px;
+  padding:0;
+  box-shadow:none;
+}
+.tbl-scroll {
+  max-height: 480px;
+  overflow: auto;
+  border:1px solid #e5eddc;
+  border-radius:14px;
+}
+table.nice-table {
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  direction:rtl;
+  color:#1a2f29;
+}
+table.nice-table thead th {
+  background:transparent;
+  color:#3a6a58;
+  font-weight:700;
+  padding:12px 10px;
+  border-bottom:1px solid #e8efe5;
+  text-align:right;
+}
+table.nice-table tbody td {
+  background:transparent;
+  padding:12px 10px;
+  border-bottom:1px solid #eef3ea;
+  font-size:14px;
+  text-align:right;
+}
+table.nice-table tbody tr:hover td { background:rgba(11,148,68,0.06); }
+table.nice-table a { color:#1a73e8; text-decoration:none; }
+table.nice-table a:hover { text-decoration:underline; }
+
+table.nice-table thead th:first-child { border-top-right-radius:12px; }
+table.nice-table thead th:last-child  { border-top-left-radius:12px; }
+table.nice-table tbody tr:last-child td:first-child { border-bottom-right-radius:12px; }
+table.nice-table tbody tr:last-child td:last-child  { border-bottom-left-radius:12px; }
+
+.pagination-summary {
+  padding-top: 8px;
+  text-align: left;
+}
+
+.map-button {
+  width: 100%;
+}
+
+.block-surface {
+  background-color: #faf8f3 !important;
+  border-radius: 14px;
+  padding: 12px 10px;
+  width: 100%;
+  display: block;
+  border: 1px solid #e1d9c6;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
+}
+
+div[data-testid="stPlotlyChart"],
+.stPlotlyChart,
+.stPlotlyChart div,
+.plotly, .js-plotly-plot,
+.plot-container {
+  background-color: #faf8f3 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.stButton>button,
+button[kind="primary"],
+button[kind="secondary"] {
+  background-color: #0b9444 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(11, 148, 68, 0.2);
+}
+
+.stButton>button:hover,
+button[kind="primary"]:hover,
+button[kind="secondary"]:hover {
+  background-color: #087a36 !important;
+}
+
+.stNumberInput div[data-baseweb="input"] {
+  background: #e7f4ee !important;
+  border: 1px solid #cfe7dc !important;
+  border-radius: 12px !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html, body,
+  .stApp,
+  div[data-testid="stAppViewContainer"],
+  div[data-testid="stVerticalBlock"],
+  div[data-testid="stHorizontalBlock"],
+  div[data-testid="block-container"],
+  div[data-testid="column"],
+  div[data-testid="column"] > div,
+  .block-surface,
+  .streamlit-folium,
+  .streamlit-folium iframe,
+  .folium-map,
+  .leaflet-container,
+  .leaflet-container .leaflet-pane,
+  .leaflet-map-pane {
+    background-color: #faf8f3 !important;
+    color: #1a2f29 !important;
+  }
+  div[data-baseweb="select"] > div,
+  .stNumberInput div[data-baseweb="input"] {
+    background-color: #e7f4ee !important;
+    color: #1a2f29 !important;
+  }
+}
+

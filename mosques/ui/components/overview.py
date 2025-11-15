@@ -1,0 +1,233 @@
+from __future__ import annotations
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+from shapely.geometry import Point
+from streamlit_folium import st_folium
+
+from config import QUARTERS, REGION_NAME_MAP
+from ui.utils import render_plotly_chart
+
+
+def render_overview(
+    quarter_param: str,
+    regions,
+    metadata: pd.DataFrame,
+    all_violator_data: dict,
+):
+    st.markdown("<h1 style='text-align: center;'>لوحة متابعة المساجد</h1>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 0.8])
+
+    all_quarters_label = "كل الأرباع"
+    quarter_options = [all_quarters_label] + QUARTERS
+
+    with c4:
+        st.markdown("<div class='quarter-wrap'><p>اختر الربع</p></div>", unsafe_allow_html=True)
+        selected_quarter_overview = st.selectbox(
+            "الربع العام",
+            quarter_options,
+            index=quarter_options.index(quarter_param) if quarter_param in quarter_options else 0,
+            label_visibility="collapsed",
+            key="overview_quarter",
+        )
+
+    if selected_quarter_overview == all_quarters_label:
+        overview_df = pd.concat(all_violator_data.values(), ignore_index=True).dropna(how="all")
+    else:
+        overview_df = all_violator_data.get(selected_quarter_overview, pd.DataFrame()).dropna(how="all")
+
+    total_mosques_overview = len(metadata)
+    violations_count_overview = len(overview_df)
+    c1.markdown(
+        f"<div class='kpi'><div class='t'><b>عدد المساجد</b></div><div class='v'>{total_mosques_overview:,}</div></div>",
+        unsafe_allow_html=True,
+    )
+    c2.markdown(
+        f"<div class='kpi'><div class='t'><b>عدد المساجد المتجاوزة</b></div><div class='v red'>{violations_count_overview:,}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+    col_map, col_bar = st.columns([1, 1], gap="medium")
+
+    with col_map:
+        st.markdown("### خريطة المناطق الإدارية ")
+
+        violator_ids = (
+            overview_df["رقم العداد"].astype(str).unique() if "رقم العداد" in overview_df.columns else []
+        )
+        violator_mosques = (
+            metadata[metadata["METER_ID_STR"].isin(violator_ids)]
+            if len(violator_ids) > 0
+            else pd.DataFrame()
+        )
+
+        province_counts = (
+            violator_mosques.groupby("Province").size().reset_index(name="count")
+            if not violator_mosques.empty and "Province" in metadata.columns
+            else pd.DataFrame(columns=["Province", "count"])
+        )
+
+        regions_map = regions.merge(province_counts, left_on="province_en", right_on="Province", how="left")
+        regions_map["count"] = regions_map["count"].fillna(0).astype(int)
+        regions_map["count_label"] = regions_map["count"].map(lambda x: f"{x:,}")
+
+        m = build_overview_map(regions_map)
+        map_state = st_folium(m, height=435, use_container_width=True)
+
+        province_clicked = None
+        if map_state and map_state.get("last_object_clicked"):
+            pt = Point(map_state["last_object_clicked"]["lng"], map_state["last_object_clicked"]["lat"])
+            clicked_region = regions[regions.geometry.contains(pt)]
+            if not clicked_region.empty:
+                province_clicked = clicked_region.iloc[0]["province_en"]
+
+        if province_clicked:
+            if province_clicked == "RIYADH PROVINCE":
+                if st.session_state.get("last_redirect") != (province_clicked, selected_quarter_overview):
+                    st.session_state["last_redirect"] = (province_clicked, selected_quarter_overview)
+                    st.query_params.update(province=province_clicked, quarter=selected_quarter_overview)
+                    st.rerun()
+            else:
+                st.toast("البيانات متاحة حاليا لمنطقة الرياض فقط.", icon="ℹ️")
+
+    with col_bar:
+        st.markdown("### توزيع المساجد حسب المنطقة")
+        if "Province" in metadata.columns:
+            counts = (
+                metadata.dropna(subset=["Province"])
+                .groupby("Province")
+                .size()
+                .reset_index(name="count")
+                .sort_values("count", ascending=False)
+                .head(8)
+            )
+            reverse_region_map = {v: k for k, v in REGION_NAME_MAP.items()}
+            counts["Province_AR"] = counts["Province"].map(reverse_region_map).fillna(counts["Province"])
+
+            fig_prov_bar = px.bar(
+                counts.sort_values("count", ascending=True),
+                x="count",
+                y="Province_AR",
+                orientation="h",
+                text="count",
+            )
+            fig_prov_bar.update_traces(
+                texttemplate="%{text:,}",
+                textposition="outside",
+                marker_color="#2E8B57",
+                marker_line_color="rgba(0,0,0,0.2)",
+                marker_line_width=0,
+            )
+            max_val = counts["count"].max()
+
+            fig_prov_bar.update_layout(
+                height=467,
+                margin=dict(t=0, b=20, l=220, r=0),
+                showlegend=False,
+                xaxis_title="<b>عدد المساجد</b>",
+                yaxis_title="",
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(
+                    showgrid=True,
+                    gridwidth=1,
+                    gridcolor="#cfc8af",
+                    zeroline=False,
+                    range=[0, max_val * 1.15],
+                    tickfont=dict(color="#114736", size=16),
+                ),
+                yaxis=dict(showgrid=False, automargin=True, tickfont=dict(color="#114736", size=18)),
+                font=dict(family="Tajawal, sans-serif", size=14, color="#114736"),
+            )
+            fig_prov_bar.update_layout(dragmode=False)
+            fig_prov_bar.update_xaxes(fixedrange=True)
+            fig_prov_bar.update_yaxes(fixedrange=True)
+            render_plotly_chart(
+                fig_prov_bar,
+                width_mode="stretch",
+                config={"displayModeBar": False, "scrollZoom": False},
+            )
+        else:
+            st.info("ملف Industry Code لا يحتوي على عمود 'Province'.")
+
+    st.markdown("### توزيع المتجاوزين عبر الأرباع")
+    quarter_labels = QUARTERS
+    quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in QUARTERS]
+
+    fig_donut = go.Figure(
+        data=[
+            go.Pie(
+                labels=quarter_labels,
+                values=quarter_values,
+                hole=0.6,
+                sort=False,
+                marker=dict(
+                    colors=["#A3D9A5", "#58B368", "#238A36"],
+                    line=dict(color="#ffffff", width=3),
+                ),
+                hovertemplate="<b>%{label}</b><br>المتجاوزين: %{value:,}<br>النسبة: %{percent}<extra></extra>",
+            )
+        ]
+    )
+    fig_donut.update_traces(
+        textposition="inside",
+        textinfo="percent",
+        textfont=dict(size=18, color="white", family="Tajawal, sans-serif"),
+    )
+    fig_donut.update_layout(
+        height=350,
+        margin=dict(t=10, b=80, l=20, r=20),
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.3,
+            xanchor="center",
+            x=0.5,
+            traceorder="normal",
+            font=dict(family="Tajawal, sans-serif", size=16, color="#2c3e50"),
+            itemclick=False,
+            itemdoubleclick=False,
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Tajawal, sans-serif", size=14, color="#333"),
+        annotations=[
+            dict(text="التوزيع", x=0.5, y=0.5, font_size=20, showarrow=False, font_family="Tajawal, sans-serif")
+        ],
+    )
+    render_plotly_chart(
+        fig_donut,
+        width_mode="stretch",
+        config={"displayModeBar": False, "scrollZoom": False},
+    )
+
+
+def build_overview_map(regions_map):
+    import folium
+
+    m = folium.Map(
+        location=[23.8859, 45.0792],
+        zoom_start=4.7,
+        tiles="CartoDB positron",
+        zoom_control=False,
+        dragging=False,
+        scrollWheelZoom=False,
+        doubleClickZoom=False,
+        touchZoom=False,
+        boxZoom=False,
+        keyboard=False,
+    )
+    m.get_root().html.add_child(
+        folium.Element("<style>.leaflet-control-attribution{display:none !important;}</style>")
+    )
+    folium.GeoJson(
+        data=regions_map.__geo_interface__,
+        style_function=lambda _: {"fillColor": "#0B9444", "color": "#0B9444", "weight": 1, "fillOpacity": 0.3},
+        highlight_function=lambda _: {"weight": 3, "fillOpacity": 0.5},
+        tooltip=folium.GeoJsonTooltip(fields=["name_ar", "count_label"], aliases=["المنطقة", "عدد المتجاوزين"]),
+    ).add_to(m)
+    return m
+
