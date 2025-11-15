@@ -17,21 +17,54 @@ def render_overview(
     metadata: pd.DataFrame,
     all_violator_data: dict,
 ):
+    def _quarter_count(label: str | None) -> int:
+        if not label:
+            return 0
+        df = all_violator_data.get(label)
+        if df is None or not isinstance(df, pd.DataFrame):
+            return 0
+        return len(df.dropna(how="all"))
+
+    def _build_delta_html(
+        current_count: int,
+        previous_count: int | None,
+        previous_label: str | None,
+        prefer_lower: bool = False,
+    ) -> str:
+        if previous_label is None or previous_count is None:
+            return "<div class='delta neutral'>أول فترة متاحة</div>"
+        if previous_count == 0:
+            return "<div class='delta neutral'>لا توجد بيانات للمقارنة</div>"
+        diff = current_count - previous_count
+        if diff == 0:
+            return f"<div class='delta flat'>بدون تغيير مقارنة بـ {previous_label}</div>"
+        pct = (diff / previous_count) * 100
+        if prefer_lower:
+            direction = "up" if diff < 0 else "down"
+        else:
+            direction = "up" if diff > 0 else "down"
+        diff_text = f"{diff:+,}"
+        pct_text = f"{pct:+.1f}%"
+        return f"<div class='delta {direction}'>{diff_text} ({pct_text}) مقارنة بـ {previous_label}</div>"
+
+    # Title at the top
     st.markdown("<h1 style='text-align: center;'>لوحة متابعة المساجد</h1>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 0.8])
 
     all_quarters_label = "كل الأرباع"
     quarter_options = [all_quarters_label] + QUARTERS
 
-    with c4:
-        st.markdown("<div class='quarter-wrap'><p>اختر الربع</p></div>", unsafe_allow_html=True)
+    # Row with KPIs centered in middle and Filter on right
+    _, kpi_col, filter_col, _ = st.columns([1.6, 1.5, 0.9, 0.6])
+    
+    # First, we need to get the selected quarter for calculations
+    with filter_col:
+        st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
         selected_quarter_overview = st.selectbox(
-            "الربع العام",
+            "اختر الربع",
             quarter_options,
             index=quarter_options.index(quarter_param) if quarter_param in quarter_options else 0,
-            label_visibility="collapsed",
             key="overview_quarter",
+            label_visibility="hidden",
         )
 
     if selected_quarter_overview == all_quarters_label:
@@ -41,14 +74,52 @@ def render_overview(
 
     total_mosques_overview = len(metadata)
     violations_count_overview = len(overview_df)
-    c1.markdown(
-        f"<div class='kpi'><div class='t'><b>عدد المساجد</b></div><div class='v'>{total_mosques_overview:,}</div></div>",
-        unsafe_allow_html=True,
+
+    mosques_delta_label = (
+        f"محدّث حتى {selected_quarter_overview}"
+        if selected_quarter_overview != all_quarters_label
+        else f"مجموع {len(QUARTERS)} أرباع"
     )
-    c2.markdown(
-        f"<div class='kpi'><div class='t'><b>عدد المساجد المتجاوزة</b></div><div class='v red'>{violations_count_overview:,}</div></div>",
-        unsafe_allow_html=True,
-    )
+    mosques_delta_html = f"<div class='delta neutral'>{mosques_delta_label}</div>"
+
+    if selected_quarter_overview == all_quarters_label:
+        violations_delta_html = f"<div class='delta neutral'>إجمالي {len(QUARTERS)} أرباع</div>"
+    else:
+        current_idx = QUARTERS.index(selected_quarter_overview)
+        previous_label = QUARTERS[current_idx - 1] if current_idx > 0 else None
+        previous_count = _quarter_count(previous_label) if previous_label else None
+        current_count = _quarter_count(selected_quarter_overview)
+        violations_delta_html = _build_delta_html(
+            current_count, previous_count, previous_label, prefer_lower=True
+        )
+
+    # Now render KPIs in the middle column
+    with kpi_col:
+        kpi_left, kpi_right = st.columns([1, 1], gap="small")
+        
+        with kpi_left:
+            st.markdown(
+            (
+                "<div class='kpi'>"
+                "<div class='t'><b>عدد المساجد</b></div>"
+                f"<div class='v'>{total_mosques_overview:,}</div>"
+                f"{mosques_delta_html}"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+        
+        with kpi_right:
+            st.markdown(
+                (
+                    "<div class='kpi'>"
+                    "<div class='t'><b>عدد المساجد المتجاوزة</b></div>"
+                    f"<div class='v red'>{violations_count_overview:,}</div>"
+                    f"{violations_delta_html}"
+                    "</div>"
+                ),
+            unsafe_allow_html=True,
+        )
 
     col_map, col_bar = st.columns([1, 1], gap="medium")
 

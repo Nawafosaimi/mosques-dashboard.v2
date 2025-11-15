@@ -71,7 +71,7 @@ div[class*="column"] {
 }
 
 .stHorizontalBlock {
-  gap: 8px !important;
+  gap: 4px !important;
 }
 
 .streamlit-folium,
@@ -108,27 +108,71 @@ header[data-testid="stHeader"] { background-color: #faf8f3 !important; }
 .kpi {
   background:#faf8f3;
   border-radius:12px;
-  padding:10px 0px;
+  padding:10px 0;
   text-align:center;
   border:1px solid #e1d9c6;
   box-shadow:0 1px 3px rgba(18,27,23,0.04);
+  width:100%;
+  max-width:280px;
+  margin:0;
 }
-.kpi .t {font-size:20px;color:#2b5d4a;}
-.kpi .v {font-size:24px;font-weight:900;color:#006c4b;}
+.kpi .t {font-size:18px;color:#2b5d4a;}
+.kpi .v {font-size:22px;font-weight:800;color:#006c4b;}
 .kpi .v.red {color:#e74c3c;}
+.kpi .delta {
+  margin-top:8px;
+  font-size:14px;
+  font-weight:600;
+  color:#4a5b52;
+}
+.kpi .delta.up { color:#198754; }
+.kpi .delta.down { color:#c0392b; }
+.kpi .delta.flat,
+.kpi .delta.neutral { color:#4a5b52; }
+.filter-card {
+  background-color:#faf8f3;
+  border:1px solid #e1d9c6;
+  border-radius:12px;
+  padding:12px;
+  box-shadow:0 1px 3px rgba(18,27,23,0.04);
+  max-width: 360px;
+}
+.filter-label {
+  margin: 0 10px 0px 0 !important;
+  font-size: 14px;
+  color: #2b5d4a;
+  font-weight: 600;
+  text-align: center;
+}
+.control-label {
+  margin: 0 0 6px 0 !important;
+  font-size: 13px;
+  color: #2b5d4a;
+  font-weight: 600;
+}
 .quarter-wrap {
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
   padding: 0 !important;
-  margin: 0 !important;
+  margin: 0 0 6px 0 !important;
+}
+.quarter-wrap p {
+  margin: 0;
+  font-size: 16px;
+  color:#2b4b3e;
+  font-weight:700;
+  text-align:center;
 }
 div[data-baseweb="select"] > div {
-  background: #e7f4ee !important;
-  border: 1px solid #cfe7dc !important;
+  background: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
   border-radius: 12px !important;
-  padding: 6px 10px !important;
+  padding: 8px 18px !important;
   color: #1a2f29 !important;
+  box-shadow: none !important;
+  width: 260px !important;
+  margin: 0 auto;
 }
 div[data-baseweb="select"] input {
   color: #1a2f29 !important;
@@ -150,7 +194,7 @@ label[data-testid="stMarkdownContainer"] p {
   box-shadow:none;
 }
 .tbl-scroll {
-  max-height: 480px;
+  max-height: 520px;
   overflow: auto;
   border:1px solid #e5eddc;
   border-radius:14px;
@@ -163,20 +207,24 @@ table.nice-table {
   color:#1a2f29;
 }
 table.nice-table thead th {
-  background:transparent;
+  background:#f4efe2;
   color:#3a6a58;
   font-weight:700;
-  padding:12px 10px;
+  padding:10px 12px;
   border-bottom:1px solid #e8efe5;
   text-align:right;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 table.nice-table tbody td {
-  background:transparent;
-  padding:12px 10px;
+  padding:10px 12px;
   border-bottom:1px solid #eef3ea;
   font-size:14px;
   text-align:right;
 }
+table.nice-table tbody tr:nth-child(odd) td { background:#fffdfa; }
+table.nice-table tbody tr:nth-child(even) td { background:#f8f4eb; }
 table.nice-table tbody tr:hover td { background:rgba(11,148,68,0.06); }
 table.nice-table a { color:#1a73e8; text-decoration:none; }
 table.nice-table a:hover { text-decoration:underline; }
@@ -218,17 +266,17 @@ div[data-testid="stPlotlyChart"],
 .stButton>button,
 button[kind="primary"],
 button[kind="secondary"] {
-  background-color: #0b9444 !important;
-  color: #ffffff !important;
+  background-color: #faf4e4 !important;
+  color: #000000 !important;
   border: none !important;
   border-radius: 12px !important;
-  box-shadow: 0 4px 12px rgba(11, 148, 68, 0.2);
+  
 }
 
 .stButton>button:hover,
 button[kind="primary"]:hover,
 button[kind="secondary"]:hover {
-  background-color: #087a36 !important;
+  background-color: #faf8f3 !important;
 }
 
 .stNumberInput div[data-baseweb="input"] {
@@ -255,10 +303,10 @@ button[kind="secondary"]:hover {
   .leaflet-map-pane {
     background-color: #faf8f3 !important;
     color: #1a2f29 !important;
-  }
+  } 
   div[data-baseweb="select"] > div,
   .stNumberInput div[data-baseweb="input"] {
-    background-color: #e7f4ee !important;
+    background-color: #faf8f3 !important; 
     color: #1a2f29 !important;
   }
 }
