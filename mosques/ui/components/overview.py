@@ -58,14 +58,16 @@ def render_overview(
     
     # First, we need to get the selected quarter for calculations
     with filter_col:
-        st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
-        selected_quarter_overview = st.selectbox(
-            "اختر الربع",
-            quarter_options,
-            index=quarter_options.index(quarter_param) if quarter_param in quarter_options else 0,
-            key="overview_quarter",
-            label_visibility="hidden",
-        )
+        spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
+        with filter_inner_col:
+            st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
+            selected_quarter_overview = st.selectbox(
+                "اختر الربع",
+                quarter_options,
+                index=quarter_options.index(quarter_param) if quarter_param in quarter_options else 0,
+                key="overview_quarter",
+                label_visibility="hidden",
+            )
 
     if selected_quarter_overview == all_quarters_label:
         overview_df = pd.concat(all_violator_data.values(), ignore_index=True).dropna(how="all")
@@ -146,7 +148,7 @@ def render_overview(
         regions_map["count_label"] = regions_map["count"].map(lambda x: f"{x:,}")
 
         m = build_overview_map(regions_map)
-        map_state = st_folium(m, height=435, use_container_width=True)
+        map_state = st_folium(m, height=435, width="stretch")
 
         province_clicked = None
         if map_state and map_state.get("last_object_clicked"):
@@ -224,53 +226,55 @@ def render_overview(
         else:
             st.info("ملف Industry Code لا يحتوي على عمود 'Province'.")
 
-    st.markdown("### توزيع المتجاوزين عبر الأرباع")
+    st.markdown("### المتجاوزين عبر الأرباع")
     quarter_labels = QUARTERS
     quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in QUARTERS]
 
-    fig_donut = go.Figure(
+    fig_line = go.Figure(
         data=[
-            go.Pie(
-                labels=quarter_labels,
-                values=quarter_values,
-                hole=0.6,
-                sort=False,
-                marker=dict(
-                    colors=["#A3D9A5", "#58B368", "#238A36"],
-                    line=dict(color="#ffffff", width=3),
-                ),
-                hovertemplate="<b>%{label}</b><br>المتجاوزين: %{value:,}<br>النسبة: %{percent}<extra></extra>",
+            go.Scatter(
+                x=quarter_labels,
+                y=quarter_values,
+                mode="lines+markers+text",
+                line=dict(color="#0B9444", width=3),
+                marker=dict(size=12, color="#0B9444", line=dict(color="#ffffff", width=2)),
+                text=[f"{val:,}" for val in quarter_values],
+                textposition="top center",
+                textfont=dict(size=16, color="#114736", family="Tajawal, sans-serif", weight="bold"),
+                hovertemplate="<b>%{x}</b><br>المتجاوزين: %{y:,}<extra></extra>",
             )
         ]
     )
-    fig_donut.update_traces(
-        textposition="inside",
-        textinfo="percent",
-        textfont=dict(size=18, color="white", family="Tajawal, sans-serif"),
-    )
-    fig_donut.update_layout(
-        height=350,
-        margin=dict(t=10, b=80, l=20, r=20),
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.3,
-            xanchor="center",
-            x=0.5,
-            traceorder="normal",
-            font=dict(family="Tajawal, sans-serif", size=16, color="#2c3e50"),
-            itemclick=False,
-            itemdoubleclick=False,
+    fig_line.update_layout(
+        height=450,
+        margin=dict(t=40, b=40, l=218, r=40),
+        showlegend=False,
+        xaxis=dict(
+            title=dict(text="<b>الربع</b>", font=dict(color="#2b5d4a", size=16, family="Tajawal, sans-serif")),
+            showgrid=False,
+            zeroline=False,
+            tickfont=dict(color="#114736", size=15, family="Tajawal, sans-serif"),
         ),
+        yaxis=dict(
+            title=dict(
+                text="<b>عدد المساجد المتجاوزة</b>",
+                font=dict(color="#2b5d4a", size=16, family="Tajawal, sans-serif"),
+                standoff=55
+            ),
+            showgrid=True,
+            gridwidth=1,
+            gridcolor="#e5eddc",
+            zeroline=False,
+            tickfont=dict(color="#114736", size=14),
+        ),
+        plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Tajawal, sans-serif", size=14, color="#333"),
-        annotations=[
-            dict(text="التوزيع", x=0.5, y=0.5, font_size=20, showarrow=False, font_family="Tajawal, sans-serif")
-        ],
+        font=dict(family="Tajawal, sans-serif", size=14, color="#114736"),
     )
+    fig_line.update_xaxes(fixedrange=True)
+    fig_line.update_yaxes(fixedrange=True)
     render_plotly_chart(
-        fig_donut,
+        fig_line,
         width_mode="stretch",
         config={"displayModeBar": False, "scrollZoom": False},
     )

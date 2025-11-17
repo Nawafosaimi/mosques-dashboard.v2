@@ -27,11 +27,15 @@ def render_province_details(
     # Title at the top
     st.markdown(f"<h1 style='text-align: center;'>تفاصيل {ar_province}</h1>", unsafe_allow_html=True)
 
-    # Back button on the left
-    back_col, _ = st.columns([1, 5])
+    # Navigation buttons on the left
+    back_col, map_col, _ = st.columns([1, 1, 3.5])
     with back_col:
-        if st.button("⬅️ رجوع", key="btn_back"):
+        if st.button("⬅️ رجوع", key="btn_back", use_container_width=True):
             st.query_params.clear()
+            st.rerun()
+    with map_col:
+        if st.button("🗺️ فتح الخريطة", key="btn_open_map", use_container_width=True):
+            st.query_params.update(province=province_param, quarter=quarter_param, view="map")
             st.rerun()
 
     # Setup quarters and selection
@@ -39,18 +43,20 @@ def render_province_details(
     quarter_options = [all_quarters_label] + QUARTERS
     q_idx = quarter_options.index(quarter_param) if quarter_param in quarter_options else 0
 
-    # Row with KPIs centered in middle and Filter on right (same layout as overview)
-    _, kpi_col, filter_col, _ = st.columns([1.6, 1.5, 0.9, 0.6])
+    # Row with KPIs on left and Filter on right (same layout as overview)
+    _, kpi_col, _, filter_col = st.columns([0.1, 1.2, 0.2, 2])
 
     with filter_col:
-        st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
-        selected_quarter = st.selectbox(
-            "الربع",
-            quarter_options,
-            index=q_idx,
-            key="detail_quarter",
-            label_visibility="hidden",
-        )
+        spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
+        with filter_inner_col:
+            st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
+            selected_quarter = st.selectbox(
+                "الربع",
+                quarter_options,
+                index=q_idx,
+                key="detail_quarter",
+                label_visibility="hidden",
+            )
 
     # Get data for selected quarter
     if selected_quarter == all_quarters_label:
@@ -160,13 +166,6 @@ def render_province_details(
                 unsafe_allow_html=True,
             )
 
-    # Map button below
-    open_map_col, _ = st.columns([1, 3])
-    with open_map_col:
-        if st.button("🗺️ فتح الخريطة التفاعلية", use_container_width=True, key="btn_open_map"):
-            st.query_params.update(province=province_param, quarter=selected_quarter, view="map")
-            st.rerun()
-
     # Prepare display dataframe
     display = table_q.dropna(how="all").reset_index(drop=True).copy()
     if "الموقع" in display.columns:
@@ -200,28 +199,55 @@ def render_province_details(
         export_placeholder = st.container()
 
     # Sort and Filter Row
+    st.markdown('<div data-table-controls="province-filters">', unsafe_allow_html=True)
     sortable_columns = [c for c in display.columns if c != "الموقع"]
-    sort_col, order_col, gov_col_widget, period_col_widget = st.columns([1.2, 1, 1.2, 1.2])
+    sort_options = [""] + sortable_columns
+    
+    # Initialize session state for sorting
+    if "detail_sort_column" not in st.session_state:
+        st.session_state.detail_sort_column = ""
+    if "detail_sort_order" not in st.session_state:
+        st.session_state.detail_sort_order = "تنازلي"
+    
+    # Find current index
+    try:
+        sort_idx = sort_options.index(st.session_state.detail_sort_column)
+    except ValueError:
+        sort_idx = 0
+    
+    order_options = ["تصاعدي", "تنازلي"]
+    try:
+        order_idx = order_options.index(st.session_state.detail_sort_order)
+    except ValueError:
+        order_idx = 1
+    
+    sort_col, order_col, gov_col_widget, period_col_widget = st.columns([1, 1, 1, 1])
 
     with sort_col:
         _control_label("ترتيب حسب")
         sort_column = st.selectbox(
             "ترتيب حسب",
-            options=[""] + sortable_columns,
-            index=0,
+            options=sort_options,
+            index=sort_idx,
             label_visibility="collapsed",
-            key="detail_sort_column",
+            key="_detail_sort_column_widget",
         )
+        if sort_column != st.session_state.detail_sort_column:
+            st.session_state.detail_sort_column = sort_column
+            st.rerun()
 
     with order_col:
         _control_label("الترتيب")
         sort_order = st.selectbox(
             "الترتيب",
-            options=["تصاعدي", "تنازلي"],
-            index=1,
+            options=order_options,
+            index=order_idx,
             label_visibility="collapsed",
-            key="detail_sort_order",
+            key="_detail_sort_order_widget",
         )
+        if sort_order != st.session_state.detail_sort_order:
+            st.session_state.detail_sort_order = sort_order
+            st.rerun()
 
     selected_governorate = ""
     selected_period = ""
@@ -254,38 +280,65 @@ def render_province_details(
                 key="detail_period",
             )
 
-    # Apply filters
-    df_filtered = display.copy()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Apply filters - use deep copy to prevent modification of original data
+    df_filtered = display.copy(deep=True)
     search_term = search_query.strip() if search_query else ""
 
     if search_term:
         pattern = re.escape(search_term)
         mask = df_filtered.astype(str).apply(lambda r: r.str.contains(pattern, case=False, na=False)).any(axis=1)
-        df_filtered = df_filtered[mask]
+        df_filtered = df_filtered[mask].copy()
 
     if selected_governorate:
-        df_filtered = df_filtered[df_filtered[governorate_col_name].astype(str) == selected_governorate]
+        df_filtered = df_filtered[df_filtered[governorate_col_name].astype(str) == selected_governorate].copy()
 
     if selected_period and period_col_name in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered[period_col_name].astype(str) == selected_period]
+        df_filtered = df_filtered[df_filtered[period_col_name].astype(str) == selected_period].copy()
 
-    if sort_column:
+    # Use session state values for sorting
+    sort_column = st.session_state.detail_sort_column
+    sort_order = st.session_state.detail_sort_order
+    
+    if sort_column and sort_column != "":
         ascending = sort_order == "تصاعدي"
+        # Debug: Show what we're sorting
+        # st.write(f"DEBUG: Sorting by '{sort_column}' - {'تصاعدي' if ascending else 'تنازلي'}")
+        
         try:
-            df_filtered[sort_column] = pd.to_numeric(df_filtered[sort_column], errors="coerce")
-            df_filtered = df_filtered.sort_values(by=sort_column, ascending=ascending, na_position="last")
-        except Exception:
+            # Try numeric sorting first
+            sort_series = pd.to_numeric(df_filtered[sort_column], errors="coerce")
+            # Check if we have any valid numeric values
+            if sort_series.notna().any():
+                # Numeric sorting - create sorted index
+                df_filtered["_sort_key"] = sort_series
+                df_filtered = df_filtered.sort_values(
+                    by="_sort_key",
+                    ascending=ascending,
+                    na_position="last"
+                ).drop(columns=["_sort_key"], errors="ignore").copy()
+            else:
+                # All values are non-numeric, use string sorting
+                df_filtered = df_filtered.sort_values(
+                    by=sort_column,
+                    ascending=ascending,
+                    na_position="last",
+                    key=lambda x: x.astype(str).str.lower()
+                ).copy()
+        except Exception as e:
+            # Fallback to simple string sorting
+            st.warning(f"خطأ في الترتيب: {str(e)}")
             df_filtered = df_filtered.sort_values(
                 by=sort_column,
                 ascending=ascending,
-                na_position="last",
-                key=lambda col: col.astype(str),
-            )
+                na_position="last"
+            ).copy()
 
-    df_filtered.reset_index(drop=True, inplace=True)
+    df_filtered = df_filtered.reset_index(drop=True)
 
     # Pagination state
-    st.session_state.setdefault("detail_rows_per_page", 25)
+    st.session_state.setdefault("detail_rows_per_page", 50)
     st.session_state.setdefault("detail_page_idx", 0)
 
     # Pagination Controls
@@ -307,30 +360,36 @@ def render_province_details(
         st.session_state.detail_last_quarter = selected_quarter
         st.session_state.detail_page_idx = 0
 
+    # Clamp to valid range
+    st.session_state.detail_page_idx = min(st.session_state.detail_page_idx, total_pages - 1)
+    st.session_state.detail_page_idx = max(0, st.session_state.detail_page_idx)
     current_page_idx = st.session_state.detail_page_idx
-
-    with pag_col2:
-        _control_label("رقم الصفحة")
-        page_num = st.number_input(
-            "صفحة",
-            min_value=1,
-            max_value=total_pages,
-            value=current_page_idx + 1,
-            step=1,
-            label_visibility="collapsed",
-        )
-        st.session_state.detail_page_idx = page_num - 1
 
     with pag_col3:
         _control_label("التنقل")
-        prev_disabled = st.session_state.detail_page_idx <= 0
-        next_disabled = st.session_state.detail_page_idx >= total_pages - 1
-        prev_btn, next_btn = st.columns(2)
-        if prev_btn.button("◀", disabled=prev_disabled, use_container_width=True, key="detail_prev_page"):
-            st.session_state.detail_page_idx = max(0, st.session_state.detail_page_idx - 1)
-            st.rerun()
+        prev_disabled = current_page_idx <= 0
+        next_disabled = current_page_idx >= total_pages - 1
+        next_btn, prev_btn = st.columns(2)
         if next_btn.button("▶", disabled=next_disabled, use_container_width=True, key="detail_next_page"):
-            st.session_state.detail_page_idx = min(total_pages - 1, st.session_state.detail_page_idx + 1)
+            st.session_state.detail_page_idx = min(total_pages - 1, current_page_idx + 1)
+            st.rerun()
+        if prev_btn.button("◀", disabled=prev_disabled, use_container_width=True, key="detail_prev_page"):
+            st.session_state.detail_page_idx = max(0, current_page_idx - 1)
+            st.rerun()
+
+    with pag_col2:
+        _control_label("رقم الصفحة")
+        page_options = list(range(1, total_pages + 1))
+        selected_page = st.selectbox(
+            "صفحة",
+            options=page_options,
+            index=current_page_idx,
+            label_visibility="collapsed",
+            key="detail_page_select",
+        )
+        # Only update if user changed it via dropdown (not via buttons)
+        if selected_page - 1 != current_page_idx:
+            st.session_state.detail_page_idx = selected_page - 1
             st.rerun()
 
     start = st.session_state.detail_page_idx * rows_per_page
@@ -355,7 +414,7 @@ def render_province_details(
         mime="text/csv",
     )
 
-    # Format table data
+    # Format table data with search highlighting
     slice_render_df = slice_df.copy()
     highlight_pattern = re.compile(re.escape(search_term), re.IGNORECASE) if search_term else None
 
@@ -364,7 +423,7 @@ def render_province_details(
             return ""
         text = str(value)
         if highlight_pattern:
-            return highlight_pattern.sub(lambda m: f"<mark>{m.group(0)}</mark>", text)
+            return highlight_pattern.sub(lambda m: f"<mark style='background:#ffe9b5;padding:2px 4px;border-radius:3px;'>{m.group(0)}</mark>", text)
         return text
 
     for column in slice_render_df.columns:
@@ -383,11 +442,11 @@ def render_province_details(
 
     if "الموقع" in slice_df.columns:
         slice_render_df["الموقع"] = [
-            f'<a href="{link}" target="_blank" title="عرض الموقع">🔗</a>' if isinstance(link, str) and link.strip() else ""
+            f'<a href="{link}" target="_blank" title="عرض الموقع">رابط الموقع</a>' if isinstance(link, str) and link.strip() else ""
             for link in slice_df["الموقع"]
         ]
 
-    # Render table
+    # Render table with your custom styling
     html_table = slice_render_df.to_html(escape=False, index=False, classes="nice-table")
     st.markdown(f'<div class="tbl-card"><div class="tbl-scroll">{html_table}</div></div>', unsafe_allow_html=True)
     st.stop()

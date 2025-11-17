@@ -164,6 +164,19 @@ header[data-testid="stHeader"] { background-color: #faf8f3 !important; }
   font-weight:700;
   text-align:center;
 }
+/* Province details table filters */
+[data-table-controls="province-filters"] div[data-baseweb="select"] > div {
+  background: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 12px !important;
+  padding: 8px 18px !important;
+  color: #1a2f29 !important;
+  box-shadow: none !important;
+  width: 180px !important;
+  margin: 0 20px 0 auto !important;
+}
+
+/* Overview page filter - independent styling */
 div[data-baseweb="select"] > div {
   background: #faf8f3 !important;
   border: 1px solid #e1d9c6 !important;
@@ -171,19 +184,153 @@ div[data-baseweb="select"] > div {
   padding: 8px 18px !important;
   color: #1a2f29 !important;
   box-shadow: none !important;
-  width: 260px !important;
-  margin: 0 auto;
 }
 div[data-baseweb="select"] input {
   color: #1a2f29 !important;
 }
 div[data-baseweb="select"] div { min-height: 34px !important; }
-div[data-baseweb="select"] svg { transform: scale(0.9); }
+div[data-baseweb="select"] svg {
+  transform: scale(0.9);
+  fill: #2b5d4a !important;
+  color: #2b5d4a !important;
+}
 label[data-testid="stMarkdownContainer"] p {
   margin-bottom: 6px !important;
   font-size: 13px !important;
 }
 .tbl-controls small { color:#355f4f; }
+
+.table-controls {
+  padding: 10px 0;
+  margin-bottom: 12px;
+}
+
+.table-controls [data-testid="column"] {
+  padding: 0 1px !important;
+}
+
+.table-controls input[type="text"],
+.table-controls input[type="search"],
+.table-controls textarea,
+input[aria-label="بحث"],
+input[data-testid="stTextInput"] {
+  background: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 12px !important;
+  padding: 10px 14px !important;
+  color: #1a2f29 !important;
+  font-size: 14px !important;
+  box-shadow: none !important;
+}
+.table-controls input[type="text"]::placeholder,
+.table-controls input[type="search"]::placeholder,
+.table-controls textarea::placeholder,
+input[aria-label="بحث"]::placeholder {
+  color: #8a7a63 !important;
+}
+
+.table-controls input[type="number"],
+div[data-baseweb="input"] input[type="number"] {
+  background: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 12px !important;
+  padding: 8px 10px !important;
+  color: #1a2f29 !important;
+  font-size: 14px !important;
+}
+.table-controls input[type="number"]::-webkit-inner-spin-button,
+.table-controls input[type="number"]::-webkit-outer-spin-button,
+div[data-baseweb="input"] input[type="number"]::-webkit-inner-spin-button,
+div[data-baseweb="input"] input[type="number"]::-webkit-outer-spin-button {
+  background: #f4efe2;
+  border-radius: 50%;
+  height: 24px;
+  width: 24px;
+}
+
+div[data-baseweb="input"] {
+  background: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 12px !important;
+  color: #1a2f29 !important;
+  box-shadow: none !important;
+}
+div[data-testid="stMarkdownContainer"] .control-label + div input {
+  background: #faf8f3 !important;
+}
+
+.table-controls button[kind="secondary"],
+.table-controls button[kind="primary"] {
+  background: #f4efe2 !important;
+  color: #1a2f29 !important;
+  border: 1px solid #e1d9c6 !important;
+}
+.table-controls button[kind="secondary"]:hover,
+.table-controls button[kind="primary"]:hover {
+  background: #f0ebe0 !important;
+}
+
+.table-controls svg {
+  fill: #2b5d4a !important;
+  color: #2b5d4a !important;
+}
+.table-controls div[data-testid="stNumberInput"] * {
+  color-scheme: light !important;
+}
+.table-controls div[data-testid="stNumberInput"] button {
+  background: transparent !important;
+  color: #2b5d4a !important;
+  border: none !important;
+  width: auto !important;
+}
+
+div[data-testid="stNumberInput"] > div {
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 14px !important;
+  background: #faf8f3 !important;
+  overflow: hidden;
+  box-shadow: none !important;
+  display: flex;
+}
+.table-controls div[data-testid="stNumberInput"] div[data-baseweb="input"] {
+  background: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow: none !important;
+  display: flex;
+}
+.table-controls div[data-testid="stNumberInput"] div[data-baseweb="input"] > div:first-child {
+  background: #f4efe2 !important;
+  border-right: 1px solid #e1d9c6 !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px !important;
+}
+.table-controls div[data-testid="stNumberInput"] div[data-baseweb="input"] > div:last-child {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: #faf8f3 !important;
+}
+.table-controls div[data-testid="stNumberInput"] div[data-baseweb="input"] > div:first-child button {
+  background: transparent !important;
+  color: #2b5d4a !important;
+  border: none !important;
+  font-size: 18px !important;
+  padding: 0 !important;
+}
+.table-controls div[data-testid="stNumberInput"] div[data-baseweb="input"] > div:first-child button:hover {
+  color: #0b9444 !important;
+}
+.table-controls div[data-testid="stNumberInput"] input[type="number"] {
+  background: transparent !important;
+  border: none !important;
+  color: #1a2f29 !important;
+  font-size: 16px !important;
+  padding: 10px 14px !important;
+}
 
 /* ======== TABLE LOOK ======== */
 .tbl-card {
@@ -196,21 +343,24 @@ label[data-testid="stMarkdownContainer"] p {
 .tbl-scroll {
   max-height: 520px;
   overflow: auto;
-  border:1px solid #e5eddc;
+  border: none;
   border-radius:14px;
+  direction: ltr;
 }
 table.nice-table {
   width:100%;
-  border-collapse:separate;
+  border-collapse:collapse;
   border-spacing:0;
   direction:rtl;
   color:#1a2f29;
+  border: none;
 }
 table.nice-table thead th {
   background:#f4efe2;
   color:#3a6a58;
   font-weight:700;
   padding:10px 12px;
+  border: none;
   border-bottom:1px solid #e8efe5;
   text-align:right;
   position: sticky;
@@ -219,13 +369,13 @@ table.nice-table thead th {
 }
 table.nice-table tbody td {
   padding:10px 12px;
-  border-bottom:1px solid #eef3ea;
+  border: none;
   font-size:14px;
   text-align:right;
 }
 table.nice-table tbody tr:nth-child(odd) td { background:#fffdfa; }
 table.nice-table tbody tr:nth-child(even) td { background:#f8f4eb; }
-table.nice-table tbody tr:hover td { background:rgba(11,148,68,0.06); }
+table.nice-table tbody tr:hover td { background:#f0ebe0; }
 table.nice-table a { color:#1a73e8; text-decoration:none; }
 table.nice-table a:hover { text-decoration:underline; }
 
@@ -265,7 +415,7 @@ table.modern-nice-table tbody td {
 table.modern-nice-table tbody tr:nth-child(odd) td { background: #fefdfb; }
 table.modern-nice-table tbody tr:nth-child(even) td { background: #faf8f3; }
 table.modern-nice-table tbody tr:hover td {
-  background: rgba(11, 148, 68, 0.04) !important;
+  background: #f0ebe0 !important;
   transition: background-color 0.15s ease;
 }
 table.modern-nice-table a {
@@ -276,6 +426,85 @@ table.modern-nice-table a {
 }
 table.modern-nice-table a:hover {
   color: #007a37;
+  text-decoration: underline;
+}
+
+div[data-testid="stDataFrame"] {
+  background: var(--paper);
+  border: 1px solid var(--card-border);
+  border-radius: 22px;
+  padding: 10px;
+  box-shadow: 0 18px 50px rgba(13, 24, 19, 0.05);
+}
+div[data-testid="stDataFrame"] > div {
+  border-radius: 16px;
+  overflow: hidden;
+  direction: ltr;
+}
+div[data-testid="stDataFrame"] .ag-root-wrapper,
+div[data-testid="stDataFrame"] .ag-root-wrapper-body,
+div[data-testid="stDataFrame"] .ag-root {
+  border-radius: 16px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+div[data-testid="stDataFrame"] .ag-theme-streamlit {
+  --ag-background-color: #fffdf9;
+  --ag-foreground-color: #1a2f29;
+  --ag-header-background-color: #f4efe2;
+  --ag-header-foreground-color: #2b5d4a;
+  --ag-odd-row-background-color: #fffdfa;
+  --ag-even-row-background-color: #f8f4eb;
+  --ag-row-hover-color: rgba(11, 148, 68, 0.08);
+  --ag-selected-row-background-color: rgba(11, 148, 68, 0.12);
+  --ag-border-color: #e5eddc;
+  --ag-borders: solid 1px #e5eddc;
+  --ag-row-border-color: #eef3ea;
+  --ag-font-family: 'Tajawal', sans-serif !important;
+  --ag-font-size: 14px;
+  direction: rtl;
+}
+div[data-testid="stDataFrame"] .ag-header {
+  background: #f4efe2 !important;
+  border-bottom: 1px solid #e8efe5 !important;
+}
+div[data-testid="stDataFrame"] .ag-header-cell::after {
+  background: transparent !important;
+}
+div[data-testid="stDataFrame"] .ag-header-cell-text {
+  color: #2b5d4a !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  font-family: 'Tajawal', sans-serif !important;
+}
+div[data-testid="stDataFrame"] .ag-row {
+  font-size: 14px;
+  color: #1a2f29;
+  font-family: 'Tajawal', sans-serif !important;
+}
+div[data-testid="stDataFrame"] .ag-row:nth-child(odd) .ag-cell {
+  background: #fffdfa !important;
+}
+div[data-testid="stDataFrame"] .ag-row:nth-child(even) .ag-cell {
+  background: #f8f4eb !important;
+}
+div[data-testid="stDataFrame"] .ag-cell {
+  border-bottom: 1px solid #eef3ea !important;
+  padding-block: 14px !important;
+  font-family: 'Tajawal', sans-serif !important;
+  color: #1a2f29 !important;
+  text-align: right !important;
+}
+div[data-testid="stDataFrame"] .ag-row-hover .ag-cell,
+div[data-testid="stDataFrame"] .ag-row-focus .ag-cell {
+  background: rgba(11, 148, 68, 0.08) !important;
+}
+div[data-testid="stDataFrame"] .ag-cell a {
+  color: #0b9444;
+  text-decoration: none;
+  font-weight: 600;
+}
+div[data-testid="stDataFrame"] .ag-cell a:hover {
   text-decoration: underline;
 }
 
@@ -297,6 +526,7 @@ table.modern-nice-table a:hover {
   border: 1px solid #e1d9c6;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
 }
+
 
 div[data-testid="stPlotlyChart"],
 .stPlotlyChart,
@@ -322,6 +552,29 @@ button[kind="secondary"] {
 button[kind="primary"]:hover,
 button[kind="secondary"]:hover {
   background-color: #faf8f3 !important;
+}
+
+/* Text Input Styling */
+div[data-testid="stTextInput"] input,
+input[type="text"] {
+  background: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 12px !important;
+  padding: 8px 18px !important;
+  color: #1a2f29 !important;
+  font-family: 'Tajawal', sans-serif !important;
+  font-size: 14px !important;
+}
+
+div[data-testid="stTextInput"] input::placeholder {
+  color: #8a9588 !important;
+  opacity: 1 !important;
+}
+
+div[data-testid="stTextInput"] input:focus {
+  border-color: #8a9588 !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .stNumberInput div[data-baseweb="input"] {
