@@ -53,8 +53,8 @@ def render_overview(
     all_quarters_label = "كل الأرباع"
     quarter_options = [all_quarters_label] + QUARTERS
 
-    # Row with KPIs centered in middle and Filter on right
-    _, kpi_col, filter_col, _ = st.columns([1.6, 1.5, 0.9, 0.6])
+    # Row with KPIs on left and Filter on right
+    _, kpi_col, _, filter_col = st.columns([0.1, 1.2, 0.2, 2])
     
     # First, we need to get the selected quarter for calculations
     with filter_col:
@@ -101,7 +101,7 @@ def render_overview(
             st.markdown(
             (
                 "<div class='kpi'>"
-                "<div class='t'><b>عدد المساجد</b></div>"
+                "<div class='t'><b>عدد المساجد في المملكة</b></div> "
                 f"<div class='v'>{total_mosques_overview:,}</div>"
                 f"{mosques_delta_html}"
                 "</div>"
