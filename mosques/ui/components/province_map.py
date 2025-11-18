@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import quote_plus
+
 import folium
 import pandas as pd
 import streamlit as st
@@ -8,7 +10,7 @@ from streamlit_folium import st_folium
 
 from config import QUARTERS
 from data import find_coord_cols
-from domain import build_marker_payload, simplify_geom
+from domain import simplify_geom
 
 
 def render_province_map(
@@ -74,23 +76,48 @@ def render_province_map(
         st.info("لا تتوفر إحداثيات X,Y لعرض الخريطة.")
         st.stop()
 
-    points, marker_lookup = build_marker_payload(metadata, violator_meters, lat_col, lon_col)
-    if not points:
+    # Get mosque data with coordinates
+    mosque_df = metadata[metadata["METER_ID_STR"].isin(violator_meters)].dropna(subset=[lat_col, lon_col]).copy()
+    
+    if mosque_df.empty:
         st.info("لا توجد مواقع لعرضها.")
         st.stop()
+
+    mosque_df[lat_col] = mosque_df[lat_col].astype(float)
+    mosque_df[lon_col] = mosque_df[lon_col].astype(float)
+    
+    # Create marker lookup for click handling
+    marker_lookup = {
+        (round(row[lat_col], 6), round(row[lon_col], 6)): str(row["METER_ID_STR"])
+        for _, row in mosque_df.iterrows()
+    }
 
     try:
         province_geom = regions[regions["province_en"] == province_param].iloc[0].geometry
         province_geom_s = simplify_geom(province_geom, tolerance=0.02)
         map_center = [province_geom_s.centroid.y, province_geom_s.centroid.x]
     except Exception:
-        lat_mean = sum(p[0] for p in points) / len(points)
-        lon_mean = sum(p[1] for p in points) / len(points)
-        map_center = [lat_mean, lon_mean]
+        map_center = [mosque_df[lat_col].mean(), mosque_df[lon_col].mean()]
         province_geom_s = None
 
     map_key = f"province_map_{province_param}_{sel_q_map}"
     fmap = folium.Map(location=map_center, zoom_start=7, tiles="CartoDB positron")
+    
+    # Add custom CSS for pin icons
+    custom_css = """
+    <style>
+        .custom-pin-icon {
+            background: none;
+            border: none;
+        }
+        .custom-pin-icon i {
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+    </style>
+    """
+    fmap.get_root().html.add_child(folium.Element(custom_css))
+    
+    # Add province boundary
     if province_geom_s is not None:
         try:
             folium.GeoJson(
@@ -101,8 +128,65 @@ def render_province_map(
         except Exception:
             pass
 
-    FastMarkerCluster(data=points).add_to(fmap)
+    # Prepare data for FastMarkerCluster: [lat, lon, popup_html]
+    marker_data = []
+    for _, row in mosque_df.iterrows():
+        meter_id = str(row["METER_ID_STR"])
+        mosque_name = row.get("Name", "—")
+        lat = row[lat_col]
+        lon = row[lon_col]
+        
+        # Create popup HTML (compact design matching site theme)
+        popup_html = f"""
+        <div style="font-family: 'Tajawal', sans-serif; direction: rtl; min-width: 180px; 
+                    background: #faf8f3; border: 1px solid #e1d9c6; border-radius: 12px; padding: 8px;">
+            <h4 style="margin: 0 0 5px 0; color: #2b5d4a; font-size: 14px; border-bottom: 2px solid #0B9444; 
+                       padding-bottom: 3px; font-weight: 700;">
+                معلومات المسجد
+            </h4>
+            <p style="margin: 3px 0; font-size: 12px; line-height: 1.4;">
+                <b style="color: #2b5d4a;">اسم المسجد:</b>
+                <span style="color: #1a2f29; display: block; margin-top: 2px;">{mosque_name}</span>
+            </p>
+            <p style="margin: 3px 0 5px 0; font-size: 12px; line-height: 1.4;">
+                <b style="color: #2b5d4a;">رقم العداد:</b>
+                <span style="color: #1a2f29; display: block; margin-top: 2px;">{meter_id}</span>
+            </p>
+            <div style="margin-top: 8px; padding: 6px; background: #e7f4ee; border-radius: 6px; text-align: center;">
+                <small style="color: #2b5d4a; font-size: 11px;">
+                    انقر على المسجد لعرض التفاصيل
+                </small>
+            </div>
+        </div>
+        """
+        
+        marker_data.append([lat, lon, popup_html])
+    
+    # JavaScript callback to create custom pin icons
+    callback = """\
+    function (row) {
+        // Create a custom blue mosque icon using DivIcon with FontAwesome
+        var icon = L.divIcon({
+            html: '<i class="fa fa-mosque fa-3x" style="color: #0b7fc4;"></i>',
+            iconSize: [10, 10],
+            iconAnchor: [17, 35],
+            popupAnchor: [0, -35],
+            className: 'custom-pin-icon'
+        });
+        var marker = L.marker(new L.LatLng(row[0], row[1]), {icon: icon});
+        marker.bindPopup(row[2], {maxWidth: 300});
+        return marker;
+    }
+    """
+    
+    # Add FastMarkerCluster with custom pin icons
+    FastMarkerCluster(
+        data=marker_data,
+        callback=callback,
+        name="مساجد مخالفة"
+    ).add_to(fmap)
 
+    # Display map with click detection
     ms = st_folium(
         fmap,
         width=None,
@@ -111,6 +195,7 @@ def render_province_map(
         returned_objects=["last_object_clicked", "last_clicked"],
     )
 
+    # Handle marker clicks - navigate to meter details
     clicked_lat, clicked_lon = None, None
     if ms and isinstance(ms.get("last_object_clicked"), dict):
         clicked_lat = ms["last_object_clicked"].get("lat")

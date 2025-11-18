@@ -217,7 +217,7 @@ input[data-testid="stTextInput"] {
   background: #faf8f3 !important;
   border: 1px solid #e1d9c6 !important;
   border-radius: 12px !important;
-  padding: 10px 14px !important;
+  padding: 100px 1px !important;
   color: #1a2f29 !important;
   font-size: 14px !important;
   box-shadow: none !important;
@@ -234,7 +234,7 @@ div[data-baseweb="input"] input[type="number"] {
   background: #faf8f3 !important;
   border: 1px solid #e1d9c6 !important;
   border-radius: 12px !important;
-  padding: 8px 10px !important;
+  padding: 1px 1px !important;
   color: #1a2f29 !important;
   font-size: 14px !important;
 }
@@ -376,8 +376,8 @@ table.nice-table tbody td {
 table.nice-table tbody tr:nth-child(odd) td { background:#fffdfa; }
 table.nice-table tbody tr:nth-child(even) td { background:#f8f4eb; }
 table.nice-table tbody tr:hover td { background:#f0ebe0; }
-table.nice-table a { color:#1a73e8; text-decoration:none; }
-table.nice-table a:hover { text-decoration:underline; }
+table.nice-table a { color:#0B9444; text-decoration:none; font-weight: 600; }
+table.nice-table a:hover { color:#007a37; text-decoration:underline; }
 
 table.nice-table thead th:first-child { border-top-right-radius:12px; }
 table.nice-table thead th:last-child  { border-top-left-radius:12px; }
@@ -543,15 +543,18 @@ button[kind="primary"],
 button[kind="secondary"] {
   background-color: #faf4e4 !important;
   color: #000000 !important;
-  border: none !important;
+  border: 2px solid #e1d9c6 !important;
   border-radius: 12px !important;
-  
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
 }
 
 .stButton>button:hover,
 button[kind="primary"]:hover,
 button[kind="secondary"]:hover {
-  background-color: #faf8f3 !important;
+  background-color: #f0ebe0 !important;
+  border-color: #e1d9c6 !important;
+  transition: background-color 0.15s ease !important;
 }
 
 /* Text Input Styling */
