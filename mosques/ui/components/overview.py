@@ -7,8 +7,35 @@ import streamlit as st
 from shapely.geometry import Point
 from streamlit_folium import st_folium
 
-from config import QUARTERS, REGION_NAME_MAP
+import config
 from ui.utils import render_plotly_chart
+
+
+@st.cache_data
+def get_combined_violator_data(all_violator_data: dict) -> pd.DataFrame:
+    """Cache the concatenation of all quarter data."""
+    return pd.concat(all_violator_data.values(), ignore_index=True).dropna(how="all")
+
+
+@st.cache_data
+def calculate_province_counts(
+    _violator_mosques: pd.DataFrame, _metadata: pd.DataFrame
+) -> pd.DataFrame:
+    """Cache the calculation of province counts."""
+    if not _violator_mosques.empty and "Province" in _metadata.columns:
+        return _violator_mosques.groupby("Province").size().reset_index(name="count")
+    return pd.DataFrame(columns=["Province", "count"])
+
+
+@st.cache_data
+def prepare_map_data(_regions, province_counts: pd.DataFrame):
+    """Cache the merging of regions with counts."""
+    regions_map = _regions.merge(
+        province_counts, left_on="province_en", right_on="Province", how="left"
+    )
+    regions_map["count"] = regions_map["count"].fillna(0).astype(int)
+    regions_map["count_label"] = regions_map["count"].map(lambda x: f"{x:,}")
+    return regions_map
 
 
 def render_overview(
@@ -51,7 +78,7 @@ def render_overview(
     st.markdown("<h1 style='text-align: center;'>لوحة متابعة المساجد</h1>", unsafe_allow_html=True)
 
     all_quarters_label = "كل الأرباع"
-    quarter_options = [all_quarters_label] + QUARTERS
+    quarter_options = [all_quarters_label] + config.QUARTERS
 
     # Row with KPIs on left and Filter on right
     # Using more flexible proportions to allow dynamic KPI width
@@ -71,7 +98,7 @@ def render_overview(
             )
 
     if selected_quarter_overview == all_quarters_label:
-        overview_df = pd.concat(all_violator_data.values(), ignore_index=True).dropna(how="all")
+        overview_df = get_combined_violator_data(all_violator_data)
     else:
         overview_df = all_violator_data.get(selected_quarter_overview, pd.DataFrame()).dropna(how="all")
 
@@ -81,15 +108,15 @@ def render_overview(
     mosques_delta_label = (
         f"محدّث حتى {selected_quarter_overview}"
         if selected_quarter_overview != all_quarters_label
-        else f"مجموع {len(QUARTERS)} أرباع"
+        else f"مجموع {len(config.QUARTERS)} أرباع"
     )
     mosques_delta_html = f"<div class='delta neutral'>{mosques_delta_label}</div>"
 
     if selected_quarter_overview == all_quarters_label:
-        violations_delta_html = f"<div class='delta neutral'>إجمالي {len(QUARTERS)} أرباع</div>"
+        violations_delta_html = f"<div class='delta neutral'>إجمالي {len(config.QUARTERS)} أرباع</div>"
     else:
-        current_idx = QUARTERS.index(selected_quarter_overview)
-        previous_label = QUARTERS[current_idx - 1] if current_idx > 0 else None
+        current_idx = config.QUARTERS.index(selected_quarter_overview)
+        previous_label = config.QUARTERS[current_idx - 1] if current_idx > 0 else None
         previous_count = _quarter_count(previous_label) if previous_label else None
         current_count = _quarter_count(selected_quarter_overview)
         violations_delta_html = _build_delta_html(
@@ -138,15 +165,8 @@ def render_overview(
             else pd.DataFrame()
         )
 
-        province_counts = (
-            violator_mosques.groupby("Province").size().reset_index(name="count")
-            if not violator_mosques.empty and "Province" in metadata.columns
-            else pd.DataFrame(columns=["Province", "count"])
-        )
-
-        regions_map = regions.merge(province_counts, left_on="province_en", right_on="Province", how="left")
-        regions_map["count"] = regions_map["count"].fillna(0).astype(int)
-        regions_map["count_label"] = regions_map["count"].map(lambda x: f"{x:,}")
+        province_counts = calculate_province_counts(violator_mosques, metadata)
+        regions_map = prepare_map_data(regions, province_counts)
 
         m = build_overview_map(regions_map)
         map_state = st_folium(m, height=435, width="stretch")
@@ -178,7 +198,7 @@ def render_overview(
                 .sort_values("count", ascending=False)
                 .head(8)
             )
-            reverse_region_map = {v: k for k, v in REGION_NAME_MAP.items()}
+            reverse_region_map = {v: k for k, v in config.REGION_NAME_MAP.items()}
             counts["Province_AR"] = counts["Province"].map(reverse_region_map).fillna(counts["Province"])
 
             fig_prov_bar = px.bar(
@@ -228,8 +248,8 @@ def render_overview(
             st.info("ملف Industry Code لا يحتوي على عمود 'Province'.")
 
     st.markdown(" ###  المتجاوزين عبر الأرباع  في منطقة الرياض ")
-    quarter_labels = QUARTERS
-    quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in QUARTERS]
+    quarter_labels = config.QUARTERS
+    quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in config.QUARTERS]
 
     fig_line = go.Figure(
         data=[

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
 import hashlib
@@ -235,4 +236,136 @@ def precompute_helpers(all_violator_data: Dict[str, pd.DataFrame], metadata: pd.
         else pd.Series(dtype="object")
     )
     return violator_sets, meter_to_province
+
+
+def process_uploaded_quarter(uploaded_file, quarter_name: str) -> Tuple[bool, str]:
+    """Process an uploaded quarter file and save it to quarters_config.json."""
+    import json
+    from io import BytesIO
+
+    try:
+        # Validate Excel structure
+        excel_file = BytesIO(uploaded_file.getbuffer())
+        is_valid, validation_msg = _validate_excel_structure(excel_file, quarter_name)
+        if not is_valid:
+            return False, validation_msg
+
+        # Create uploaded_quarters directory if it doesn't exist
+        uploaded_quarters_dir = Path(__file__).parent.parent / "uploaded_quarters"
+        uploaded_quarters_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save the file
+        filename = f"{quarter_name}.xlsx"
+        file_path = uploaded_quarters_dir / filename
+
+        # Write the uploaded file to disk
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        # Extract date range from quarter name
+        start_date, end_date = _extract_date_range_from_quarter_name(quarter_name)
+
+        # Update quarters_config.json (save in DATA_DIR, same location as quarter Excel files)
+        from config import DATA_DIR
+        config_file = DATA_DIR / "quarters_config.json"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Load existing config
+        if config_file.exists():
+            with open(config_file, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        else:
+            config = {"quarters": {}}
+
+        # Add or update the quarter
+        config["quarters"][quarter_name] = {
+            "file_path": f"uploaded_quarters/{filename}",
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+
+        # Save updated config with explicit flush to ensure file is written
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+            f.flush()  # Ensure file is written to disk
+            import os
+            os.fsync(f.fileno())  # Force OS to sync the file to disk
+
+        # Clear cache to force reload
+        st.cache_data.clear()
+
+        return True, f"تم تحميل الربع '{quarter_name}' بنجاح!"
+    except Exception as e:
+        return False, f"خطأ أثناء معالجة الملف: {str(e)}"
+
+
+def _validate_excel_structure(excel_file, quarter_name: str) -> Tuple[bool, str]:
+    """Validate that the Excel file has the required structure."""
+    try:
+        wb = openpyxl.load_workbook(excel_file, data_only=False)
+
+        # Check if file has sheets
+        if not wb.sheetnames:
+            return False, "الملف لا يحتوي على أي ورقات (sheets)"
+
+        # Check required columns in first sheet
+        sheet = wb[wb.sheetnames[0]]
+        if not sheet:
+            return False, "الملف لا يحتوي على أي بيانات"
+
+        header = [
+            cell.value.strip() if isinstance(cell.value, str) else cell.value
+            for cell in sheet[1]
+        ]
+
+        # Required columns
+        required_cols = {"رقم العداد", "اسم المسجد", "المحافظة"}
+        missing_cols = required_cols - set(header)
+
+        if missing_cols:
+            return False, f"الملف لا يحتوي على الأعمدة المطلوبة: {', '.join(missing_cols)}"
+
+        return True, "الملف صحيح"
+    except Exception as e:
+        return False, f"خطأ في التحقق من الملف: {str(e)}"
+
+
+def _extract_date_range_from_quarter_name(quarter_name: str) -> Tuple[str, str]:
+    """Extract date range from quarter name based on Arabic text."""
+    quarter_name_lower = quarter_name.lower()
+    year_str = None
+
+    # Try to extract year
+    for word in quarter_name.split():
+        if word.isdigit() and len(word) == 4:
+            year_str = word
+            break
+
+    if not year_str:
+        year_str = str(datetime.now().year)
+
+    year = int(year_str)
+
+    # Determine quarter number from Arabic text
+    quarter_num = 1
+    if "ثاني" in quarter_name_lower or "الثاني" in quarter_name_lower:
+        quarter_num = 2
+    elif "ثالث" in quarter_name_lower or "الثالث" in quarter_name_lower:
+        quarter_num = 3
+    elif "رابع" in quarter_name_lower or "الرابع" in quarter_name_lower:
+        quarter_num = 4
+
+    # Map quarter number to date range
+    quarter_dates = {
+        1: ("01-01", "03-31"),
+        2: ("04-01", "06-30"),
+        3: ("07-01", "09-30"),
+        4: ("10-01", "12-31"),
+    }
+
+    start_month_day, end_month_day = quarter_dates.get(quarter_num, ("01-01", "03-31"))
+    start_date = f"{year}-{start_month_day}"
+    end_date = f"{year}-{end_month_day}"
+
+    return start_date, end_date
 

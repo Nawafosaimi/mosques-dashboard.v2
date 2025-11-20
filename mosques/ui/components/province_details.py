@@ -8,7 +8,7 @@ from urllib.parse import quote_plus
 import pandas as pd
 import streamlit as st
 
-from config import QUARTERS
+import config
 from domain import localize_booleans
 
 
@@ -40,7 +40,7 @@ def render_province_details(
 
     # Setup quarters and selection
     all_quarters_label = "كل الأرباع"
-    quarter_options = [all_quarters_label] + QUARTERS
+    quarter_options = [all_quarters_label] + config.QUARTERS
     q_idx = quarter_options.index(quarter_param) if quarter_param in quarter_options else 0
 
     # Row with KPIs on left and Filter on right
@@ -127,11 +127,11 @@ def render_province_details(
 
     # Prepare delta HTML for violations
     if selected_quarter == all_quarters_label:
-        violations_delta_html = f"<div class='delta neutral'>إجمالي {len(QUARTERS)} أرباع</div>"
-        mosques_delta_html = f"<div class='delta neutral'>مجموع {len(QUARTERS)} أرباع</div>"
+        violations_delta_html = f"<div class='delta neutral'>إجمالي {len(config.QUARTERS)} أرباع</div>"
+        mosques_delta_html = f"<div class='delta neutral'>مجموع {len(config.QUARTERS)} أرباع</div>"
     else:
-        current_idx = QUARTERS.index(selected_quarter)
-        previous_label = QUARTERS[current_idx - 1] if current_idx > 0 else None
+        current_idx = config.QUARTERS.index(selected_quarter)
+        previous_label = config.QUARTERS[current_idx - 1] if current_idx > 0 else None
         previous_count = _quarter_count(previous_label) if previous_label else None
         current_count = _quarter_count(selected_quarter)
         violations_delta_html = _build_delta_html(

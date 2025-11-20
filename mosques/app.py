@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from config import QUARTERS, validate_data_configuration
+import config
+from config import validate_data_configuration, get_quarters, QUARTER_FILES, QUARTER_DATES
 from data import (
     DataFileError,
     load_all_violator_data,
@@ -17,6 +18,7 @@ from ui.components import (
     render_overview,
     render_province_details,
     render_province_map,
+    render_quarter_upload,
 )
 
 
@@ -24,11 +26,30 @@ def main():
     st.set_page_config(
         page_title="لوحة متابعة المساجد",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     apply_base_styles()
 
-    missing_critical, missing_optional = validate_data_configuration()
+    # Initialize refresh flag if not set
+    if "refresh_quarters" not in st.session_state:
+        st.session_state.refresh_quarters = False
+
+    # Load quarters fresh on each app run (includes uploaded quarters)
+    # This will pick up any newly uploaded quarters from quarters_config.json
+    QUARTER_FILES, QUARTER_DATES, QUARTERS = get_quarters()
+
+    # Clear the refresh flag after loading
+    st.session_state.refresh_quarters = False
+
+    # Update config module's globals so render functions get fresh quarters
+    config.QUARTER_FILES = QUARTER_FILES
+    config.QUARTER_DATES = QUARTER_DATES
+    config.QUARTERS = QUARTERS
+
+    # Render sidebar upload component
+    render_quarter_upload()
+
+    missing_critical, missing_optional = validate_data_configuration(quarter_files=QUARTER_FILES)
     if missing_critical:
         details = "\n".join(f"- {label}: {path}" for label, path in missing_critical.items())
         st.error(
@@ -48,7 +69,7 @@ def main():
         regions = load_regions()
         ts = load_timeseries()
         metadata = load_industry_meta()
-        all_violator_data = load_all_violator_data()
+        all_violator_data = load_all_violator_data(quarter_files=QUARTER_FILES)
     except DataFileError as exc:
         st.error(f"تعذر تحميل البيانات: {exc}")
         st.stop()

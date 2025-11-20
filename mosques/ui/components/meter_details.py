@@ -8,7 +8,7 @@ import plotly.express as px
 import streamlit as st
 from streamlit_folium import st_folium
 
-from config import QUARTER_DATES, QUARTERS
+import config
 from data import find_coord_cols
 from domain import safe_str
 from ui.utils import render_plotly_chart
@@ -26,8 +26,8 @@ def render_meter_details(
     if not meter_param:
         return False
 
-    if quarter_param not in QUARTER_DATES:
-        quarter_param = QUARTERS[0]
+    if quarter_param not in config.QUARTER_DATES:
+        quarter_param = config.QUARTERS[0]
 
     meter_id_str = safe_str(meter_param)
     meta_row = metadata[metadata["METER_ID_STR"] == meter_id_str]
@@ -57,7 +57,7 @@ def render_meter_details(
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
-    q_start, q_end = QUARTER_DATES[quarter_param]
+    q_start, q_end = config.QUARTER_DATES[quarter_param]
 
     lon_col, lat_col = find_coord_cols(metadata)
     cinfo1, cinfo2 = st.columns([2, 1])
@@ -103,7 +103,7 @@ def render_meter_details(
     """
     st.markdown("### ملخص الأرباع")
     merged_rows = []
-    for quarter in QUARTERS:
+    for quarter in config.QUARTERS:
         viol = "نعم" if meter_id_str in violator_sets.get(quarter, set()) else "لا"
         df_q = all_violator_data.get(quarter, pd.DataFrame())
 

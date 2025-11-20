@@ -8,7 +8,7 @@ import streamlit as st
 from folium.plugins import FastMarkerCluster
 from streamlit_folium import st_folium
 
-from config import QUARTERS
+import config
 from data import find_coord_cols
 from domain import simplify_geom
 
@@ -25,7 +25,7 @@ def render_province_map(
     top_l, top_c, top_r = st.columns([1, 2, 1])
     with top_l:
         if st.button("⬅ رجوع", key="btn_back_from_map"):
-            back_q = st.query_params.get("quarter", QUARTERS[0])
+            back_q = st.query_params.get("quarter", config.QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)
             if "view" in st.query_params:
                 del st.query_params["view"]
@@ -38,8 +38,8 @@ def render_province_map(
         )
     with top_r:
         all_label = "كل الأرباع"
-        opts = [all_label] + QUARTERS
-        q_in_url = st.query_params.get("quarter", QUARTERS[0])
+        opts = [all_label] + config.QUARTERS
+        q_in_url = st.query_params.get("quarter", config.QUARTERS[0])
         q_idx = opts.index(q_in_url) if q_in_url in opts else 0
         sel_q_map = st.selectbox(
             "الربع على الخريطة",
