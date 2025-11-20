@@ -43,8 +43,9 @@ def render_province_details(
     quarter_options = [all_quarters_label] + QUARTERS
     q_idx = quarter_options.index(quarter_param) if quarter_param in quarter_options else 0
 
-    # Row with KPIs on left and Filter on right (same layout as overview)
-    _, kpi_col, _, filter_col = st.columns([0.1, 1.2, 0.2, 2])
+    # Row with KPIs on left and Filter on right
+    # Using more flexible proportions to allow dynamic KPI width
+    _, kpi_col, _, filter_col = st.columns([0.08, 1.8, 0.15, 2.2], gap="medium")
 
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
@@ -138,9 +139,9 @@ def render_province_details(
         )
         mosques_delta_html = f"<div class='delta neutral'>محدّث حتى {selected_quarter}</div>"
 
-    # Render KPIs in the middle column (same style as overview page)
+    # Render KPIs in the middle column (dynamic width based on content)
     with kpi_col:
-        k1, k2 = st.columns([1, 1], gap="small")
+        k1, k2 = st.columns([1, 1.2], gap="medium")
 
         with k1:
             st.markdown(
@@ -196,13 +197,16 @@ def render_province_details(
         st.markdown(f"<p class='control-label'>{text}</p>", unsafe_allow_html=True)
 
     # Initialize session state for sorting
+    sortable_columns = [c for c in display.columns if c not in ["الموقع", "المحافظة_الورقة"]]
+    sort_options = [""] + sortable_columns
+
+    # Set default sort column to قيمة الفاتورة الإجمالي if it exists
+    default_sort_column = "قيمة الفاتورة الإجمالي" if "قيمة الفاتورة الإجمالي" in sortable_columns else ""
+
     if "detail_sort_column" not in st.session_state:
-        st.session_state.detail_sort_column = ""
+        st.session_state.detail_sort_column = default_sort_column
     if "detail_sort_order" not in st.session_state:
         st.session_state.detail_sort_order = "تنازلي"
-
-    sortable_columns = [c for c in display.columns if c != "الموقع"]
-    sort_options = [""] + sortable_columns
 
     # Find current index
     try:
@@ -220,12 +224,15 @@ def render_province_details(
     st.session_state.setdefault("detail_rows_per_page", 50)
     st.session_state.setdefault("detail_page_idx", 0)
 
+    # Sheet filter state setup
+    st.session_state.setdefault("detail_sheet_filter", "الكل")
+
     # All controls in one row: title, search, sort, filters, pagination, and export
     st.markdown('<div data-table-controls="province-filters">', unsafe_allow_html=True)
-    title_col, search_col, sort_col, order_col, gov_col, period_col, rows_col, page_col, export_col = st.columns([1.5, 1, 0.9, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6])
+    title_col, search_col, sort_col, order_col, sheet_col, gov_col, period_col, rows_col, page_col, export_col = st.columns([1.5, 1, 0.9, 0.8, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6])
 
     with title_col:
-        st.markdown("<h3 style='margin-top: 10px; margin-bottom: 0;'>قائمة المساجد المتجاوزة</h3>", unsafe_allow_html=True)
+        st.markdown("<h4 style='margin-top: 10px; margin-bottom: 0;'>قائمة المساجد المتجاوزة</h4>", unsafe_allow_html=True)
 
     with search_col:
         _control_label("البحث")
@@ -261,6 +268,35 @@ def render_province_details(
         if sort_order != st.session_state.detail_sort_order:
             st.session_state.detail_sort_order = sort_order
             st.rerun()
+
+    # Sheet filter
+    selected_sheet = ""
+    with sheet_col:
+        # Debug: Check if column exists
+        if "المحافظة_الورقة" not in display.columns:
+            st.warning(f"Available columns: {list(display.columns)}")
+
+        if "المحافظة_الورقة" in display.columns:
+            _control_label("المنطقة")
+            sheet_options = ["الكل"] + sorted(
+                display["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
+            )
+            # Find current index
+            try:
+                sheet_idx = sheet_options.index(st.session_state.detail_sheet_filter)
+            except ValueError:
+                sheet_idx = 0
+
+            selected_sheet = st.selectbox(
+                "المنطقة",
+                sheet_options,
+                index=sheet_idx,
+                label_visibility="collapsed",
+                key="_detail_sheet_filter_widget",
+            )
+            if selected_sheet != st.session_state.detail_sheet_filter:
+                st.session_state.detail_sheet_filter = selected_sheet
+                st.rerun()
 
     selected_governorate = ""
     selected_period = ""
@@ -322,6 +358,10 @@ def render_province_details(
         pattern = re.escape(search_term)
         mask = df_filtered.astype(str).apply(lambda r: r.str.contains(pattern, case=False, na=False)).any(axis=1)
         df_filtered = df_filtered[mask].copy()
+
+    # Apply sheet filter
+    if selected_sheet and selected_sheet != "الكل" and "المحافظة_الورقة" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["المحافظة_الورقة"].astype(str) == selected_sheet].copy()
 
     if selected_governorate:
         df_filtered = df_filtered[df_filtered[governorate_col_name].astype(str) == selected_governorate].copy()
@@ -453,8 +493,11 @@ def render_province_details(
             for link in slice_df["الموقع"]
         ]
 
+    # Hide the sheet tracking column from display
+    display_df = slice_render_df.drop(columns=["المحافظة_الورقة"], errors="ignore")
+
     # Render table with your custom styling
-    html_table = slice_render_df.to_html(escape=False, index=False, classes="nice-table")
+    html_table = display_df.to_html(escape=False, index=False, classes="nice-table")
     st.markdown(f'<div class="tbl-card"><div class="tbl-scroll">{html_table}</div></div>', unsafe_allow_html=True)
 
     # Add spacing before pagination

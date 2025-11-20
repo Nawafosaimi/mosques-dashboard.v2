@@ -24,7 +24,7 @@ def render_province_map(
 
     top_l, top_c, top_r = st.columns([1, 2, 1])
     with top_l:
-        if st.button("⬅️ رجوع", key="btn_back_from_map"):
+        if st.button("⬅ رجوع", key="btn_back_from_map"):
             back_q = st.query_params.get("quarter", QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)
             if "view" in st.query_params:

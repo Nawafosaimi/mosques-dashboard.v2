@@ -108,13 +108,50 @@ header[data-testid="stHeader"] { background-color: #faf8f3 !important; }
 .kpi {
   background:#faf8f3;
   border-radius:12px;
-  padding:10px 0;
+  padding:10px 15px;
   text-align:center;
   border:1px solid #e1d9c6;
   box-shadow:0 1px 3px rgba(18,27,23,0.04);
-  width:100%;
-  max-width:280px;
+  width:auto;
   margin:0;
+  white-space:normal;
+  word-break:break-word;
+  min-width:0;
+}
+/* Responsive breakpoints for KPI */
+@media (max-width: 1200px) {
+  .kpi {
+    padding: 10px 12px;
+    min-width: 200px;
+  }
+}
+@media (max-width: 768px) {
+  .kpi {
+    padding: 10px 10px;
+    min-width: 150px;
+    font-size: 14px;
+  }
+  .kpi .t {
+    font-size: 16px;
+  }
+  .kpi .v {
+    font-size: 20px;
+  }
+}
+@media (max-width: 480px) {
+  .kpi {
+    padding: 8px 8px;
+    min-width: 120px;
+  }
+  .kpi .t {
+    font-size: 14px;
+  }
+  .kpi .v {
+    font-size: 18px;
+  }
+  .kpi .delta {
+    font-size: 12px;
+  }
 }
 .kpi .t {font-size:18px;color:#2b5d4a;}
 .kpi .v {font-size:22px;font-weight:800;color:#006c4b;}
@@ -346,6 +383,26 @@ div[data-testid="stNumberInput"] > div {
   border: none;
   border-radius:14px;
   direction: ltr;
+  overflow-y: scroll;
+}
+
+/* Show scrollbar */
+.tbl-scroll::-webkit-scrollbar {
+  width: 12px;
+}
+
+.tbl-scroll::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.tbl-scroll::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.tbl-scroll::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 table.nice-table {
   width:100%;

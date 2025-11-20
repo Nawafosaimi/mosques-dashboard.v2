@@ -54,13 +54,14 @@ def render_overview(
     quarter_options = [all_quarters_label] + QUARTERS
 
     # Row with KPIs on left and Filter on right
-    _, kpi_col, _, filter_col = st.columns([0.1, 1.2, 0.2, 2])
+    # Using more flexible proportions to allow dynamic KPI width
+    _, kpi_col, _, filter_col = st.columns([0.08, 1.8, 0.15, 2.2], gap="medium")
     
     # First, we need to get the selected quarter for calculations
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
-            st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
+            st.markdown("<p  class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
             selected_quarter_overview = st.selectbox(
                 "اختر الربع",
                 quarter_options,
@@ -95,9 +96,9 @@ def render_overview(
             current_count, previous_count, previous_label, prefer_lower=True
         )
 
-    # Now render KPIs in the middle column
+    # Now render KPIs in the middle column (dynamic width based on content)
     with kpi_col:
-        kpi_left, kpi_right = st.columns([1, 1], gap="small")
+        kpi_left, kpi_right = st.columns([1, 1.2], gap="medium")
         
         with kpi_left:
             st.markdown(
@@ -115,7 +116,7 @@ def render_overview(
             st.markdown(
                 (
                     "<div class='kpi'>"
-                    "<div class='t'><b>عدد المساجد المتجاوزة</b></div>"
+                    "<div class='t'><b>عدد المساجد المتجاوزة في منطقة الرياض</b></div>"
                     f"<div class='v red'>{violations_count_overview:,}</div>"
                     f"{violations_delta_html}"
                     "</div>"
@@ -226,7 +227,7 @@ def render_overview(
         else:
             st.info("ملف Industry Code لا يحتوي على عمود 'Province'.")
 
-    st.markdown("### المتجاوزين عبر الأرباع")
+    st.markdown(" ###  المتجاوزين عبر الأرباع  في منطقة الرياض ")
     quarter_labels = QUARTERS
     quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in QUARTERS]
 

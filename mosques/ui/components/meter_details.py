@@ -78,12 +78,12 @@ def render_meter_details(
             and pd.notna(meta_row.iloc[0][lat_col])
         ):
             lon, lat = float(meta_row.iloc[0][lon_col]), float(meta_row.iloc[0][lat_col])
-            fmap = folium.Map(location=[lat, lon], zoom_start=12, tiles="CartoDB positron")
+            fmap = folium.Map(location=[lat, lon], zoom_start=12, tiles="CartoDB Positron")
             folium.Marker([lat, lon], tooltip=f"{meter_id_str}").add_to(fmap)
             st_folium(fmap, width=None, height=220)
         else:
             st.info("لا تتوفر إحداثيات X,Y لهذا العداد.")
-
+    """
     st.markdown("### استهلاك الطاقة اليومي")
     meter_ts_q = ts[
         (ts["METER_ID_STR"] == meter_id_str) & (ts["date"].between(q_start, q_end))
@@ -96,10 +96,11 @@ def render_meter_details(
             margin=dict(t=10, b=10, l=10, r=10),
             height=380,
             xaxis_title="التاريخ",
-            yaxis_title="متوسط الطاقة",
+            yaxis_title="متوسط الاستهلاك ",
+            
         )
         render_plotly_chart(fig_line, width_mode="stretch")
-
+    """
     st.markdown("### ملخص الأرباع")
     merged_rows = []
     for quarter in QUARTERS:

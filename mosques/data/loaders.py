@@ -210,7 +210,10 @@ def _load_quarter_excel(path: Path, quarter: str):
                     values.append(value)
             rows.append(values)
         if rows:
-            dfs.append(pd.DataFrame(rows, columns=header))
+            sheet_df = pd.DataFrame(rows, columns=header)
+            # Track which sheet this data came from using المحافظة
+            sheet_df["المحافظة_الورقة"] = sheet_name
+            dfs.append(sheet_df)
 
     if dfs:
         df = pd.concat(dfs, ignore_index=True)
