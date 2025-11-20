@@ -6,6 +6,7 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 STYLE_FILE = ASSETS_DIR / "style.css"
 
 
+@st.cache_data
 def apply_base_styles() -> None:
     """Inject the shared CSS stylesheet if it exists."""
     if STYLE_FILE.exists():

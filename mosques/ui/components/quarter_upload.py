@@ -6,12 +6,13 @@ from data.loaders import process_uploaded_quarter
 
 
 def render_quarter_upload():
-    """Render the quarter upload UI component in the sidebar."""
-    st.sidebar.divider()
-    st.sidebar.header("📤 إضافة ربع جديد")
+    """Render the quarter upload UI component (intended for modal/dialog)."""
+    # Removed st.sidebar references to allow rendering in main area/modal
+    st.header("📤 إضافة ربع جديد")
+    st.write("قم بتحميل ملف Excel يحتوي على بيانات الربع الجديد لإضافته إلى النظام.")
 
     # File uploader
-    uploaded_file = st.sidebar.file_uploader(
+    uploaded_file = st.file_uploader(
         "تحميل ملف Excel للربع",
         type=["xlsx"],
         help="اختر ملف Excel يحتوي على بيانات الربع الجديد",
@@ -21,30 +22,50 @@ def render_quarter_upload():
         # Extract quarter name from filename
         filename = uploaded_file.name
         quarter_name = _extract_quarter_name(filename)
+        
+        # Create a unique key for this specific file upload instance
+        # We use size and name to track if we've already processed this exact file
+        file_key = f"processed_{filename}_{uploaded_file.size}"
+        
+        # Initialize processed files tracker if needed
+        if "processed_uploads" not in st.session_state:
+            st.session_state.processed_uploads = set()
 
-        st.sidebar.info(f"📋 اسم الربع المكتشف: **{quarter_name}**")
-
-        # Process upload button
-        if st.sidebar.button("✅ تحميل الربع", use_container_width=True):
-            with st.spinner("جاري معالجة الملف..."):
+        # If this file hasn't been processed yet, process it immediately
+        if file_key not in st.session_state.processed_uploads:
+            st.info(f"⏳ جاري معالجة الملف: **{quarter_name}**...")
+            
+            # Show a spinner while processing
+            with st.spinner("جاري معالجة البيانات..."):
                 try:
                     success, message = process_uploaded_quarter(uploaded_file, quarter_name)
+                    
                     if success:
-                        st.sidebar.success(f"✅ {message}")
-                        # Clear all caches to ensure fresh data load
+                        # Mark as processed BEFORE rerun to avoid loops
+                        st.session_state.processed_uploads.add(file_key)
+                        
+                        # Show success message briefly
+                        st.success(f"✅ {message}")
+                        
+                        # Clear data caches
                         st.cache_data.clear()
                         st.cache_resource.clear()
-                        # Small delay to ensure file is fully written
+                        
+                        # Small delay to ensure user sees the success state
                         import time
-                        time.sleep(0.5)
-                        # Rerun the app - this will trigger get_quarters() fresh in app.py
+                        time.sleep(1.0)
+                        
+                        # Rerun app to update data
                         st.rerun()
                     else:
-                        st.sidebar.error(f"❌ {message}")
+                        st.error(f"❌ {message}")
+                        
                 except Exception as e:
-                    st.sidebar.error(f"❌ حدث خطأ: {str(e)}")
-
-    _inject_sidebar_css()
+                    st.error(f"❌ حدث خطأ: {str(e)}")
+        else:
+            # File already processed
+            st.success(f"✅ تم تحميل الربع: **{quarter_name}** بنجاح.")
+            st.write("يمكنك إغلاق هذه النافذة أو تحميل ملف آخر.")
 
 
 def _extract_quarter_name(filename: str) -> str:

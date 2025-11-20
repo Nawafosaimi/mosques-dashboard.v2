@@ -22,11 +22,16 @@ from ui.components import (
 )
 
 
+@st.dialog("إضافة ربع جديد")
+def upload_dialog():
+    render_quarter_upload()
+
+
 def main():
     st.set_page_config(
         page_title="لوحة متابعة المساجد",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="collapsed",
     )
     apply_base_styles()
 
@@ -34,20 +39,25 @@ def main():
     if "refresh_quarters" not in st.session_state:
         st.session_state.refresh_quarters = False
 
-    # Load quarters fresh on each app run (includes uploaded quarters)
-    # This will pick up any newly uploaded quarters from quarters_config.json
+    # Load quarters fresh on each app run
     QUARTER_FILES, QUARTER_DATES, QUARTERS = get_quarters()
-
-    # Clear the refresh flag after loading
     st.session_state.refresh_quarters = False
-
-    # Update config module's globals so render functions get fresh quarters
     config.QUARTER_FILES = QUARTER_FILES
     config.QUARTER_DATES = QUARTER_DATES
     config.QUARTERS = QUARTERS
-
-    # Render sidebar upload component
-    render_quarter_upload()
+    
+    # Header with "Add Quarter" button (aligned left due to RTL, looks good)
+    # Using columns to place it discreetly or prominently
+    # Since app is RTL, col1 is right, col2 is left? Streamlit RTL aligns columns right-to-left.
+    # So col1 is rightmost.
+    
+    # We want it somewhere accessible.
+    # Let's put it in a dedicated container at the top.
+    
+    top_col1, top_col2 = st.columns([6, 1])
+    with top_col2:
+        if st.button("➕ إضافة ربع", use_container_width=True, type="primary"):
+            upload_dialog()
 
     missing_critical, missing_optional = validate_data_configuration(quarter_files=QUARTER_FILES)
     if missing_critical:
@@ -125,4 +135,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

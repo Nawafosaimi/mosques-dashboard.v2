@@ -218,6 +218,9 @@ def _load_quarter_excel(path: Path, quarter: str):
 
     if dfs:
         df = pd.concat(dfs, ignore_index=True)
+        # If there's no المحافظة column but we have المحافظة_الورقة, use it as المحافظة
+        if "المحافظة" not in df.columns and "المحافظة_الورقة" in df.columns:
+            df["المحافظة"] = df["المحافظة_الورقة"]
         df.to_parquet(cache_path, index=False)
         return df
     return pd.DataFrame()

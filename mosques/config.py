@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
+import streamlit as st # Added for caching
 
 from dotenv import load_dotenv
 
@@ -121,6 +122,7 @@ def _load_dynamic_quarters() -> Tuple[Dict[str, Path], Dict[str, Tuple[datetime,
 
 # ===== Time ranges =====
 
+@st.cache_data
 def get_quarters() -> Tuple[Dict[str, Path], Dict[str, Tuple[datetime, datetime]], list]:
     """Get current quarters (static + dynamic).
 
