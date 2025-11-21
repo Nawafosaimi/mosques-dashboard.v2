@@ -9,6 +9,12 @@ from streamlit_folium import st_folium
 
 import config
 from ui.utils import render_plotly_chart
+from .quarter_upload import render_quarter_upload
+
+
+@st.dialog("إضافة ربع جديد")
+def upload_dialog():
+    render_quarter_upload()
 
 
 @st.cache_data
@@ -78,7 +84,8 @@ def render_overview(
     st.markdown("<h1 style='text-align: center;'>لوحة متابعة المساجد</h1>", unsafe_allow_html=True)
 
     all_quarters_label = "كل الأرباع"
-    quarter_options = [all_quarters_label] + config.QUARTERS
+    add_quarter_label = "إضافة ربع جديد"
+    quarter_options = [all_quarters_label] + config.QUARTERS + [add_quarter_label]
 
     # Row with KPIs on left and Filter on right
     # Using more flexible proportions to allow dynamic KPI width
@@ -89,13 +96,27 @@ def render_overview(
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
             st.markdown("<p  class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
+            
+            # Determine index
+            if quarter_param in config.QUARTERS:
+                q_idx = quarter_options.index(quarter_param)
+            elif quarter_param == all_quarters_label:
+                q_idx = 0
+            else:
+                q_idx = 0
+
             selected_quarter_overview = st.selectbox(
                 "اختر الربع",
                 quarter_options,
-                index=quarter_options.index(quarter_param) if quarter_param in quarter_options else 0,
+                index=q_idx,
                 key="overview_quarter",
                 label_visibility="hidden",
             )
+
+            if selected_quarter_overview == add_quarter_label:
+                upload_dialog()
+                # Revert to current quarter for background rendering
+                selected_quarter_overview = quarter_param if quarter_param in quarter_options else all_quarters_label
 
     if selected_quarter_overview == all_quarters_label:
         overview_df = get_combined_violator_data(all_violator_data)
@@ -168,8 +189,17 @@ def render_overview(
         province_counts = calculate_province_counts(violator_mosques, metadata)
         regions_map = prepare_map_data(regions, province_counts)
 
+        # Reset map state if returning from a redirect
+        if "last_redirect" in st.session_state:
+            del st.session_state["last_redirect"]
+            st.session_state.overview_map_nonce = st.session_state.get("overview_map_nonce", 0) + 1
+
+        if "overview_map_nonce" not in st.session_state:
+            st.session_state.overview_map_nonce = 0
+
         m = build_overview_map(regions_map)
-        map_state = st_folium(m, height=435, width="stretch")
+        map_key = f"overview_map_{st.session_state.overview_map_nonce}"
+        map_state = st_folium(m, height=435, width="stretch", key=map_key)
 
         province_clicked = None
         if map_state and map_state.get("last_object_clicked"):

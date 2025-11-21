@@ -10,6 +10,12 @@ import streamlit as st
 
 import config
 from domain import localize_booleans
+from .quarter_upload import render_quarter_upload
+
+
+@st.dialog("إضافة ربع جديد")
+def upload_dialog():
+    render_quarter_upload()
 
 
 def render_province_details(
@@ -40,8 +46,16 @@ def render_province_details(
 
     # Setup quarters and selection
     all_quarters_label = "كل الأرباع"
-    quarter_options = [all_quarters_label] + config.QUARTERS
-    q_idx = quarter_options.index(quarter_param) if quarter_param in quarter_options else 0
+    add_quarter_label = "إضافة ربع جديد"
+    quarter_options = [all_quarters_label] + config.QUARTERS + [add_quarter_label]
+    
+    # Determine index for selectbox
+    if quarter_param in config.QUARTERS:
+        q_idx = quarter_options.index(quarter_param)
+    elif quarter_param == all_quarters_label:
+        q_idx = 0
+    else:
+        q_idx = 0
 
     # Row with KPIs on left and Filter on right
     # Using more flexible proportions to allow dynamic KPI width
@@ -58,6 +72,11 @@ def render_province_details(
                 key="detail_quarter",
                 label_visibility="hidden",
             )
+            
+            if selected_quarter == add_quarter_label:
+                upload_dialog()
+                # Revert to current quarter for background rendering
+                selected_quarter = quarter_param if quarter_param in quarter_options else all_quarters_label
 
     # Get data for selected quarter
     if selected_quarter == all_quarters_label:
@@ -496,8 +515,13 @@ def render_province_details(
     # Hide the sheet tracking column from display
     display_df = slice_render_df.drop(columns=["المحافظة_الورقة"], errors="ignore")
 
-    # Render table with your custom styling
-    html_table = display_df.to_html(escape=False, index=False, classes="nice-table")
+    # Build table HTML with proper thead/tbody for sticky headers
+    header_html = "".join(f"<th>{col}</th>" for col in display_df.columns)
+    rows_html = ""
+    for _, row in display_df.iterrows():
+        cells = "".join(f"<td>{val}</td>" for val in row)
+        rows_html += f"<tr>{cells}</tr>"
+    html_table = f'<table class="nice-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
     st.markdown(f'<div class="tbl-card"><div class="tbl-scroll">{html_table}</div></div>', unsafe_allow_html=True)
 
     # Add spacing before pagination

@@ -3,6 +3,7 @@ from __future__ import annotations
 from urllib.parse import quote_plus
 
 import folium
+from folium.features import DivIcon
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -35,12 +36,29 @@ def render_meter_details(
     if not meta_row.empty:
         mosque_name = meta_row.iloc[0].get("Name", meta_row.iloc[0].get("name_ar", ""))
 
+    # Find the first available location link (if any) across all quarters
+    location_link = ""
+    for df in all_violator_data.values():
+        if "رقم العداد" not in df.columns:
+            continue
+        row = df[df["رقم العداد"].astype(str) == meter_id_str]
+        if not row.empty:
+            link_val = row.iloc[0].get("الموقع")
+            if isinstance(link_val, str) and link_val.strip():
+                location_link = link_val.strip()
+                break
+
     hdr_left, hdr_center, hdr_right = st.columns([1, 3, 1])
     with hdr_left:
-        if st.button("⬅️ رجوع", key="btn_back_meter"):
+        if st.button("رجوع", key="btn_back_meter"):
             params = {}
+            # Capture view mode if present
+            view_mode = st.query_params.get("view")
+
             if province_param:
                 params = {"province": province_param, "quarter": quarter_param}
+                if view_mode == "map":
+                    params["view"] = "map"
             elif quarter_param:
                 params = {"quarter": quarter_param}
             st.query_params.clear()
@@ -57,14 +75,60 @@ def render_meter_details(
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
+    # --- METRICS CALCULATION ---
+    total_bill = 0.0
+    bill_count = 0
+    violation_count = 0
+    province_name = "غير معروف"
+
+    # Iterate over all quarters to aggregate data
+    for q_name, df in all_violator_data.items():
+        if "رقم العداد" not in df.columns:
+            continue
+        
+        row = df[df["رقم العداد"].astype(str) == meter_id_str]
+        if not row.empty:
+            # Count violation if present in this quarter's data
+            violation_count += 1
+            
+            # Bill Value
+            if "قيمة الفاتورة الإجمالي" in row.columns:
+                val = row.iloc[0]["قيمة الفاتورة الإجمالي"]
+                try:
+                    val_float = float(val)
+                    total_bill += val_float
+                    bill_count += 1
+                except (ValueError, TypeError):
+                    pass
+            
+            # Province (Grab from the first available quarter that has it)
+            if province_name == "غير معروف" and "المحافظة" in row.columns:
+                prov = row.iloc[0]["المحافظة"]
+                if isinstance(prov, str) and prov.strip():
+                    province_name = prov.strip()
+
+
+
     q_start, q_end = config.QUARTER_DATES[quarter_param]
 
     lon_col, lat_col = find_coord_cols(metadata)
-    cinfo1, cinfo2 = st.columns([2, 1])
+    lon_col, lat_col = find_coord_cols(metadata)
+    # Adjust columns for RTL: [Spacer, Card (Right), Spacer, Map (Left), Spacer]
+    # Centering the content as requested
+    _, cinfo1, _, cinfo2, _ = st.columns([0.5, 1, 0.2, 1.5, 0.5])
     with cinfo1:
         if not meta_row.empty:
             st.markdown(
-                f"<div class='card'><b>رقم العداد:</b> {meter_id_str}<br><b>اسم المسجد:</b> {mosque_name}</div>",
+                (
+                    "<div class='meter-info-card'>"
+                    "<div class='meter-label'>رقم العداد</div>"
+                    f"<div class='meter-value'>{meter_id_str}</div>"
+                    "<div class='meter-label'>المحافظة</div>"
+                    f"<div class='meter-value'>{province_name}</div>"
+                    "<div class='meter-label'>إجمالي الفواتير</div>"
+                    f"<div class='meter-value highlight'>{int(total_bill):,} ريال</div>"
+                    "</div>"
+                ),
                 unsafe_allow_html=True,
             )
         else:
@@ -78,48 +142,53 @@ def render_meter_details(
             and pd.notna(meta_row.iloc[0][lat_col])
         ):
             lon, lat = float(meta_row.iloc[0][lon_col]), float(meta_row.iloc[0][lat_col])
-            fmap = folium.Map(location=[lat, lon], zoom_start=12, tiles="CartoDB Positron")
-            folium.Marker([lat, lon], tooltip=f"{meter_id_str}").add_to(fmap)
-            st_folium(fmap, width=None, height=220)
+            fmap = folium.Map(
+                location=[lat, lon],
+                zoom_start=12,
+                tiles="CartoDB Positron",
+                zoom_control=True,
+                dragging=False,
+                scrollWheelZoom=False,
+                doubleClickZoom=False,
+                touchZoom=False,
+            )
+
+            popup_html = (
+                f"<div style='min-width:160px;font-family:Tajawal;'>"
+                f"<strong>{mosque_name or meter_id_str}</strong><br>"
+            )
+            if location_link:
+                popup_html += f"<a href='{location_link}' target='_blank'>فتح الموقع</a>"
+            else:
+                popup_html += meter_id_str
+            popup_html += "</div>"
+
+            folium.Marker(
+                [lat, lon],
+                tooltip=f"{meter_id_str}",
+                popup=folium.Popup(popup_html, max_width=250),
+            ).add_to(fmap)
+            st_folium(fmap, width=None, height=250)
         else:
             st.info("لا تتوفر إحداثيات X,Y لهذا العداد.")
-    """
-    st.markdown("### استهلاك الطاقة اليومي")
-    meter_ts_q = ts[
-        (ts["METER_ID_STR"] == meter_id_str) & (ts["date"].between(q_start, q_end))
-    ].sort_values("date")
-    if meter_ts_q.empty:
-        st.warning("لا توجد قراءات في هذا الربع.")
-    else:
-        fig_line = px.line(meter_ts_q, x="date", y="avg_power", markers=True, title="")
-        fig_line.update_layout(
-            margin=dict(t=10, b=10, l=10, r=10),
-            height=380,
-            xaxis_title="التاريخ",
-            yaxis_title="متوسط الاستهلاك ",
-            
-        )
-        render_plotly_chart(fig_line, width_mode="stretch")
-    """
     st.markdown("### ملخص الأرباع")
     merged_rows = []
     for quarter in config.QUARTERS:
         viol = "نعم" if meter_id_str in violator_sets.get(quarter, set()) else "لا"
         df_q = all_violator_data.get(quarter, pd.DataFrame())
 
-        link = ""
         bill_value = "N/A"
 
+        bill_numeric = 0.0
         if not df_q.empty and "رقم العداد" in df_q.columns:
             row = df_q[df_q["رقم العداد"].astype(str) == meter_id_str]
             if not row.empty:
-                if "الموقع" in row.columns and isinstance(row.iloc[0]["الموقع"], str):
-                    link = row.iloc[0]["الموقع"]
-
                 if "قيمة الفاتورة الإجمالي" in row.columns:
                     val = row.iloc[0]["قيمة الفاتورة الإجمالي"]
                     try:
-                        bill_value = f"{int(float(val))}"
+                        val_float = float(val)
+                        bill_value = f"{int(val_float)}"
+                        bill_numeric = val_float
                     except (ValueError, TypeError):
                         bill_value = str(val)
 
@@ -128,11 +197,49 @@ def render_meter_details(
                 "الربع": quarter,
                 "قيمة الفاتورة الإجمالي": bill_value,
                 "مُتجاوز؟": viol,
-                "الموقع": f'<a href="{link}" target="_blank">عرض</a>' if link else "",
+                "bill_numeric": bill_numeric,
             }
         )
 
     merged_df = pd.DataFrame(merged_rows)
-    st.markdown(merged_df.to_html(escape=False, index=False, classes="nice-table"), unsafe_allow_html=True)
+    # Drop the numeric column used for charting so it doesn't show in the table
+    display_df = merged_df.drop(columns=["bill_numeric"], errors="ignore")
+    # Build table HTML with proper thead/tbody for sticky headers
+    header_html = "".join(f"<th>{col}</th>" for col in display_df.columns)
+    rows_html = ""
+    for _, row in display_df.iterrows():
+        cells = "".join(f"<td>{val}</td>" for val in row)
+        rows_html += f"<tr>{cells}</tr>"
+    table_html = f'<table class="nice-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
+    st.markdown(f"<div class='table-wrapper'>{table_html}</div>", unsafe_allow_html=True)
+
+    st.markdown("### إجمالي الفواتير لكل ربع")
+    if not merged_df.empty:
+        fig_line = px.line(
+            merged_df,
+            x="الربع",
+            y="bill_numeric",
+            title="",
+            text="bill_numeric",
+            markers=True,
+        )
+        fig_line.update_traces(
+            texttemplate="%{text:.2s}",
+            textposition="top center",
+            line_color="#456E58",
+            marker=dict(size=10, color="#456E58"),
+        )
+        fig_line.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            height=380,
+            xaxis_title="الربع",
+            yaxis_title="قيمة الفاتورة",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Tajawal", size=14, color="#1a2f29"),
+        )
+        fig_line.update_yaxes(showgrid=True, gridcolor="#e0e0e0")
+        render_plotly_chart(fig_line, width_mode="stretch")
+
     st.stop()
 

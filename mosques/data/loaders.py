@@ -130,11 +130,47 @@ def find_coord_cols(meta_df: pd.DataFrame) -> Tuple[str | None, str | None]:
 
 
 @st.cache_data
-def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES):
+def load_single_quarter_data(quarter: str, quarter_files: Dict[str, Path] = QUARTER_FILES) -> pd.DataFrame:
+    """Load data for a single quarter. Useful for lazy loading specific quarters."""
+    if quarter not in quarter_files:
+        raise DataFileError(f"Quarter '{quarter}' not found in configuration.")
+    
+    file_path = quarter_files[quarter]
+    path = Path(file_path)
+    cache_path = _quarter_cache_path(quarter, path)
+
+    if path.exists():
+        df = _load_quarter_excel(path, quarter)
+    elif cache_path.exists():
+        df = pd.read_parquet(cache_path)
+    else:
+        raise DataFileError(f"Data file for quarter '{quarter}' not found at {path}")
+
+    if df is None or df.empty:
+        return pd.DataFrame()
+    
+    return df
+
+
+@st.cache_data
+def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES, specific_quarters: list[str] | None = None):
+    """Load violator data for all quarters or specific quarters only.
+    
+    Args:
+        quarter_files: Dictionary mapping quarter names to file paths
+        specific_quarters: Optional list of quarter names to load. If None, loads all quarters.
+    """
     all_data: Dict[str, pd.DataFrame] = {}
     missing_sources: Dict[str, Path] = {}
 
-    for quarter, file_path in quarter_files.items():
+    # Filter to specific quarters if requested
+    quarters_to_load = specific_quarters if specific_quarters else list(quarter_files.keys())
+
+    for quarter in quarters_to_load:
+        if quarter not in quarter_files:
+            continue
+            
+        file_path = quarter_files[quarter]
         path = Path(file_path)
         cache_path = _quarter_cache_path(quarter, path)
 
@@ -149,7 +185,8 @@ def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES):
         if df is not None and not df.empty:
             all_data[quarter] = df
 
-    if missing_sources:
+    if missing_sources and not specific_quarters:
+        # Only show warning if we're loading all quarters (not specific ones)
         missing_list = "\n".join(f"- {q}: {p}" for q, p in missing_sources.items())
         st.warning(
             "لم يتم العثور على بعض ملفات المخالفات أو ملفات الكاش الخاصة بها. "

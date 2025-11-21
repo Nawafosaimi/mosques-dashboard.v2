@@ -24,7 +24,7 @@ def render_province_map(
 
     top_l, top_c, top_r = st.columns([1, 2, 1])
     with top_l:
-        if st.button("⬅ رجوع", key="btn_back_from_map"):
+        if st.button("رجوع", key="btn_back_from_map"):
             back_q = st.query_params.get("quarter", config.QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)
             if "view" in st.query_params:
@@ -92,6 +92,14 @@ def render_province_map(
         for _, row in mosque_df.iterrows()
     }
 
+    # Reset map state if returning from a redirect
+    if "last_meter_redirect" in st.session_state:
+        del st.session_state["last_meter_redirect"]
+        st.session_state.province_map_nonce = st.session_state.get("province_map_nonce", 0) + 1
+
+    if "province_map_nonce" not in st.session_state:
+        st.session_state.province_map_nonce = 0
+
     try:
         province_geom = regions[regions["province_en"] == province_param].iloc[0].geometry
         province_geom_s = simplify_geom(province_geom, tolerance=0.02)
@@ -100,7 +108,7 @@ def render_province_map(
         map_center = [mosque_df[lat_col].mean(), mosque_df[lon_col].mean()]
         province_geom_s = None
 
-    map_key = f"province_map_{province_param}_{sel_q_map}"
+    map_key = f"province_map_{province_param}_{sel_q_map}_{st.session_state.province_map_nonce}"
     fmap = folium.Map(location=map_center, zoom_start=7, tiles="CartoDB positron")
     
     # Add custom CSS for pin icons
@@ -208,8 +216,10 @@ def render_province_map(
         key = (round(float(clicked_lat), 6), round(float(clicked_lon), 6))
         meter_id = marker_lookup.get(key)
         if meter_id:
-            st.query_params.update(meter=meter_id, province=province_param, quarter=sel_q_map)
-            st.rerun()
+            if st.session_state.get("last_meter_redirect") != meter_id:
+                st.session_state["last_meter_redirect"] = meter_id
+                st.query_params.update(meter=meter_id, province=province_param, quarter=sel_q_map)
+                st.rerun()
 
     st.stop()
 

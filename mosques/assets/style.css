@@ -105,7 +105,7 @@ section[data-testid="stSidebar"] {
   border-left: 1px solid #e1d9c6 !important;
 }
 
-section[data-testid="stSidebar"] > div {
+section[data-testid="stSidebar"]>div {
   padding: 24px 20px !important;
 }
 
@@ -158,103 +158,250 @@ div[data-testid="stDecoration"] {
   visibility: hidden !important;
 }
 
+/* Hide Streamlit spinner/loading indicator */
+div[data-testid="stSpinner"],
+.stSpinner,
+div[data-testid="stStatusWidget"],
+section[data-testid="stStatusWidget"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Filter Label Styling */
+.filter-label {
+  font-family: 'Tajawal', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: #1a2f29;
+  margin-bottom: 10px;
+}
+
 /* Fix broken Material Icons rendering as text "keyboard_arrow_right" */
 /* This hides the text artifact if the icon font fails to load */
 span[data-testid="stIconMaterial"] {
-    font-family: 'Material Icons', 'Material Symbols Rounded', sans-serif !important;
-    visibility: visible;
+  font-family: 'Material Icons', 'Material Symbols Rounded', sans-serif !important;
+  visibility: visible;
 }
 
 /* Style the st.dialog Modal Overlay (Backdrop) with smooth transitions */
 div[data-testid="stDialog"] {
-    background-color: rgba(0, 0, 0, 0) !important; /* Start transparent */
-    backdrop-filter: blur(0px) !important; /* Start without blur */
-    animation: fadeInBackdrop 0.05s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
-    will-change: background-color, backdrop-filter !important; /* Optimize for animation */
+  background-color: rgba(0, 0, 0, 0) !important;
+  /* Start transparent */
+  backdrop-filter: blur(0px) !important;
+  /* Start without blur */
+  animation: fadeInBackdrop 0.05s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  will-change: background-color, backdrop-filter !important;
+  /* Optimize for animation */
 }
 
 @keyframes fadeInBackdrop {
-    to {
-        background-color: rgba(0, 0, 0, 0.2) !important;
-        backdrop-filter: blur(4px) !important; /* Slightly reduced for better performance */
-    }
+  to {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    backdrop-filter: blur(4px) !important;
+    /* Slightly reduced for better performance */
+  }
 }
 
 /* The actual Modal Content Box with smooth scale/fade animation */
-div[data-testid="stDialog"] > div[role="dialog"] {
-    background-color: #faf8f3 !important;
-    border: 1px solid #e1d9c6 !important;
-    border-radius: 20px !important;
-    box-shadow: 0 10px 40px rgba(11, 148, 68, 0.15) !important;
-    color: #1a2f29 !important;
-    opacity: 0 !important;
-    transform: scale(0.96) translateY(-8px) !important;
-    animation: slideInDialog 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
-    will-change: opacity, transform !important; /* Optimize for animation */
+div[data-testid="stDialog"]>div[role="dialog"] {
+  background-color: #faf8f3 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 10px 40px rgba(11, 148, 68, 0.15) !important;
+  color: #1a2f29 !important;
+  opacity: 0 !important;
+  transform: scale(0.96) translateY(-8px) !important;
+  animation: slideInDialog 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+  will-change: opacity, transform !important;
+  /* Optimize for animation */
 }
 
 @keyframes slideInDialog {
-    to {
-        opacity: 1 !important;
-        transform: scale(1) translateY(0) !important;
-    }
+  to {
+    opacity: 1 !important;
+    transform: scale(1) translateY(0) !important;
+  }
 }
 
 /* Fix inner content background */
 div[data-testid="stDialog"] div[data-testid="stVerticalBlock"] {
-    background-color: #faf8f3 !important;
+  background-color: #faf8f3 !important;
 }
 
 div[data-testid="stDialog"] h2 {
-    color: #0B9444 !important;
-    font-weight: 700 !important;
-    border-bottom: 2px solid #e1d9c6 !important;
-    padding-bottom: 10px !important;
-    margin-bottom: 20px !important;
+  color: #0B9444 !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #e1d9c6 !important;
+  padding-bottom: 10px !important;
+  margin-bottom: 20px !important;
 }
 
 /* Fix File Uploader Dark Theme Issue */
-div[data-testid="stDialog"] .stFileUploader > div {
-    background-color: #ffffff !important;
-    border: 2px dashed #c9c0ab !important;
-    border-radius: 12px !important;
+div[data-testid="stDialog"] .stFileUploader>div {
+  background-color: #D4F1D8 !important;
+  border: 2px dashed #c9c0ab !important;
+  border-radius: 12px !important;
 }
 
 div[data-testid="stDialog"] section[data-testid="stFileUploaderDropzone"] {
-    background-color: #ffffff !important;
-    color: #1a2f29 !important;
+  background-color: #faf8f3 !important;
+  color: #1a2f29 !important;
+}
+
+div[data-testid="stDialog"] section[data-testid="stFileUploaderDropzone"] * {
+  color: #1a2f29 !important;
+}
+
+/* Fix uploaded file name text color */
+div[data-testid="stDialog"] .stFileUploader [data-testid="stFileUploaderFileName"] {
+  color: #1a2f29 !important;
+}
+
+div[data-testid="stDialog"] .stFileUploader button {
+  color: #1a2f29 !important;
+}
+
+/* --- Meter Page Redesign --- */
+
+/* Premium Info Card */
+.meter-info-card {
+  background-color: #faf8f3;
+  border: 1px solid #c9c0ab;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+  text-align: right;
+}
+
+.meter-info-card .meter-label {
+  font-family: 'Tajawal', sans-serif;
+  font-size: 14px;
+  color: #456E58;
+  margin-bottom: 4px;
+}
+
+.meter-info-card .meter-value {
+  font-family: 'Tajawal', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a2f29;
+  margin-bottom: 12px;
+}
+
+.meter-info-card .meter-value.highlight {
+  color: #456E58;
+  font-size: 20px;
+}
+
+/* Improved Table Styling */
+.table-wrapper {
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: auto;
+  margin-top: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: 0;
+  position: relative;
+}
+
+.nice-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: 'Tajawal', sans-serif;
+}
+
+.nice-table thead tr {
+  background-color: #FAF8F3;
+  color: #ffffff;
+  text-align: right;
+}
+
+.nice-table th {
+  position: sticky !important;
+  top: 0 !important;
+  background-color: #FAF8F3 !important;
+  z-index: 10 !important;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 12px 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.nice-table th,
+.nice-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.nice-table tbody tr:nth-of-type(even) {
+  background-color: #fdfcf8;
+}
+
+.nice-table tbody tr:hover {
+  background-color: #f5f5f5;
+}
+
+.nice-table th {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.nice-table td {
+  font-size: 14px;
+  color: #333;
+}
+
+/* Status Badges */
+.badge-violator {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge-clean {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 div[data-testid="stDialog"] .stFileUploader label {
-    color: #1a2f29 !important;
+  color: #1a2f29 !important;
 }
 
 div[data-testid="stDialog"] .stFileUploader div[data-testid="stMarkdownContainer"] p {
-    color: #1a2f29 !important;
+  color: #1a2f29 !important;
 }
 
 div[data-testid="stDialog"] button[kind="primary"] {
-    background-color: #0B9444 !important;
-    border-color: #0B9444 !important;
-    width: 100% !important;
-    margin-top: 10px !important;
+  background-color: #0B9444 !important;
+  border-color: #0B9444 !important;
+  width: 100% !important;
+  margin-top: 10px !important;
 }
 
 div[data-testid="stDialog"] button[kind="primary"]:hover {
-    background-color: #0db354 !important;
-    box-shadow: 0 4px 12px rgba(11, 148, 68, 0.2) !important;
+  background-color: #0db354 !important;
+  box-shadow: 0 4px 12px rgba(11, 148, 68, 0.2) !important;
 }
 
 /* Close button in dialog */
 div[data-testid="stDialog"] button[kind="secondary"] {
-    background: transparent !important;
-    border: none !important;
-    color: #888 !important;
+  background: transparent !important;
+  border: none !important;
+  color: #888 !important;
 }
 
 div[data-testid="stDialog"] button[kind="secondary"]:hover {
-    color: #000 !important;
-    background: rgba(0,0,0,0.05) !important;
+  color: #000 !important;
+  background: rgba(0, 0, 0, 0.05) !important;
 }
 
 /* Responsive breakpoints for KPI */
@@ -346,9 +493,9 @@ div[data-testid="stDialog"] button[kind="secondary"]:hover {
 
 .filter-label {
   margin: 0 10px 0px 0 !important;
-  font-size: 14px;
-  color: #2b5d4a;
-  font-weight: 600;
+  font-size: 20px !important;
+  color: #2b5d4a !important;
+  font-weight: 700 !important;
   text-align: center;
 }
 
@@ -577,9 +724,10 @@ div[data-testid="stNumberInput"]>div {
   max-height: 520px;
   overflow: auto;
   border: none;
-  border-radius: 14px;
+  border-radius: 0;
   direction: ltr;
   overflow-y: scroll;
+  position: relative;
 }
 
 /* Show scrollbar */
@@ -611,16 +759,16 @@ table.nice-table {
 }
 
 table.nice-table thead th {
-  background: #f4efe2;
+  background: #f4efe2 !important;
   color: #3a6a58;
   font-weight: 700;
   padding: 10px 12px;
   border: none;
   border-bottom: 1px solid #e8efe5;
   text-align: right;
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
 }
 
 table.nice-table tbody td {
@@ -628,6 +776,17 @@ table.nice-table tbody td {
   border: none;
   font-size: 14px;
   text-align: right;
+  list-style: none;
+}
+
+table.nice-table tbody td::before {
+  content: none !important;
+  display: none !important;
+}
+
+table.nice-table tbody td::marker {
+  content: none !important;
+  display: none !important;
 }
 
 table.nice-table tbody tr:nth-child(odd) td {
@@ -679,15 +838,15 @@ table.modern-nice-table {
 }
 
 table.modern-nice-table thead th {
-  background: linear-gradient(135deg, #f4efe2 0%, #ede7d9 100%);
+  background: linear-gradient(135deg, #f4efe2 0%, #ede7d9 100%) !important;
   color: #2b5d4a;
   font-weight: 700;
   padding: 14px 14px;
   border: none;
   text-align: right;
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
   font-size: 13px;
   letter-spacing: 0.3px;
 }

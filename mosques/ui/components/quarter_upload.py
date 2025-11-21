@@ -13,9 +13,9 @@ def render_quarter_upload():
 
     # File uploader
     uploaded_file = st.file_uploader(
-        "تحميل ملف Excel للربع",
+        "تحميل ملف الربع",
         type=["xlsx"],
-        help="اختر ملف Excel يحتوي على بيانات الربع الجديد",
+        help="اختر ملف يحتوي على بيانات الربع الجديد",
     )
 
     if uploaded_file is not None:
