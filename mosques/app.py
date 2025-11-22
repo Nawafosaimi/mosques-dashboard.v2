@@ -58,7 +58,6 @@ def main():
         st.stop()
     if missing_optional:
         details = "\n".join(f"- {label}: {path}" for label, path in missing_optional.items())
-        details = "\n".join(f"- {label}: {path}" for label, path in missing_optional.items())
         st.markdown(
             f"""
             <div style="background-color: #ffe9b5; padding: 10px; border-radius: 5px; color: black; border: 1px solid #e0c486; direction: rtl; text-align: right; margin-bottom: 1rem;">

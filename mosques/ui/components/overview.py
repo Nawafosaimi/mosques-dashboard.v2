@@ -95,7 +95,7 @@ def render_overview(
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
-            st.markdown("<p  class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
+            st.markdown("<p  class='filter-label'>اختر او اضف ربع جديد</p>", unsafe_allow_html=True)
             
             # Determine index
             if quarter_param in config.QUARTERS:
@@ -281,49 +281,50 @@ def render_overview(
     quarter_labels = config.QUARTERS
     quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in config.QUARTERS]
 
-    fig_line = go.Figure(
-        data=[
-            go.Scatter(
-                x=quarter_labels,
-                y=quarter_values,
-                mode="lines+markers+text",
-                line=dict(color="#0B9444", width=3),
-                marker=dict(size=12, color="#0B9444", line=dict(color="#ffffff", width=2)),
-                text=[f"{val:,}" for val in quarter_values],
-                textposition="top center",
-                textfont=dict(size=16, color="#114736", family="Tajawal, sans-serif", weight="bold"),
-                hovertemplate="<b>%{x}</b><br>المتجاوزين: %{y:,}<extra></extra>",
-            )
-        ]
+    # Create DataFrame for Plotly Express to match meter_details.py style
+    chart_df = pd.DataFrame({
+        "الربع": quarter_labels,
+        "count": quarter_values
+    })
+
+    fig_line = px.line(
+        chart_df,
+        x="الربع",
+        y="count",
+        title="",
+        text="count",
+        markers=True,
+    )
+    fig_line.update_traces(
+        texttemplate="%{text:,}",
+        textposition="top center",
+        line_color="#456E58",
+        marker=dict(size=10, color="#456E58"),
     )
     fig_line.update_layout(
         height=450,
         margin=dict(t=40, b=40, l=218, r=40),
         showlegend=False,
-        xaxis=dict(
-            title=dict(text="<b>الربع</b>", font=dict(color="#2b5d4a", size=16, family="Tajawal, sans-serif")),
-            showgrid=False,
-            zeroline=False,
-            tickfont=dict(color="#114736", size=15, family="Tajawal, sans-serif"),
-        ),
-        yaxis=dict(
-            title=dict(
-                text="<b>عدد المساجد المتجاوزة</b>",
-                font=dict(color="#2b5d4a", size=16, family="Tajawal, sans-serif"),
-                standoff=55
-            ),
-            showgrid=True,
-            gridwidth=1,
-            gridcolor="#e5eddc",
-            zeroline=False,
-            tickfont=dict(color="#114736", size=14),
-        ),
+        xaxis_title="<b>الربع</b>",
+        yaxis_title="<b>عدد المساجد المتجاوزة</b>",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Tajawal, sans-serif", size=14, color="#114736"),
+        font=dict(family="Tajawal, sans-serif", size=14, color="#1a2f29"),
     )
-    fig_line.update_xaxes(fixedrange=True)
-    fig_line.update_yaxes(fixedrange=True)
+    fig_line.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+        tickfont=dict(color="#1a2f29", size=15, family="Tajawal, sans-serif"),
+        fixedrange=True
+    )
+    fig_line.update_yaxes(
+        showgrid=True,
+        gridcolor="#e0e0e0",
+        zeroline=False,
+        tickfont=dict(color="#1a2f29", size=14),
+        fixedrange=True,
+        title_standoff=49
+    )
     render_plotly_chart(
         fig_line,
         width_mode="stretch",

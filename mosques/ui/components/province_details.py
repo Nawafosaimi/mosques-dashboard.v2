@@ -64,7 +64,7 @@ def render_province_details(
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
-            st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
+            st.markdown("<p class='filter-label'>اختر او اضف ربع جديد</p>", unsafe_allow_html=True)
             selected_quarter = st.selectbox(
                 "الربع",
                 quarter_options,
@@ -536,7 +536,7 @@ def render_province_details(
     _, next_col, ind_col, prev_col, _ = st.columns([5, 1.2, 1.5, 1.2, 5])
 
     with next_col:
-        if st.button("التالي ▶", disabled=next_disabled, use_container_width=True, key="detail_next_page"):
+        if st.button("▶ التالي", disabled=next_disabled, use_container_width=True, key="detail_next_page"):
             if st.session_state.detail_page_idx < total_pages - 1:
                 st.session_state.detail_page_idx += 1
                 st.rerun()
@@ -550,7 +550,7 @@ def render_province_details(
         )
 
     with prev_col:
-        if st.button("◀ السابق", disabled=prev_disabled, use_container_width=True, key="detail_prev_page"):
+        if st.button(" السابق ◀ ", disabled=prev_disabled, use_container_width=True, key="detail_prev_page"):
             if st.session_state.detail_page_idx > 0:
                 st.session_state.detail_page_idx -= 1
                 st.rerun()

@@ -48,9 +48,17 @@ def render_meter_details(
                 location_link = link_val.strip()
                 break
 
-    hdr_left, hdr_center, hdr_right = st.columns([1, 3, 1])
-    with hdr_left:
-        if st.button("رجوع", key="btn_back_meter"):
+    # Subtitle with meter details
+    display_title = mosque_name if mosque_name else f"العداد: {meter_id_str}"
+    st.markdown(
+        f'<h2 style="text-align:center; color: #1a2f29;">تفاصيل {display_title}</h2>',
+        unsafe_allow_html=True,
+    )
+
+    # Navigation buttons - consistent with province details page
+    _, back_col, _ = st.columns([0.2, 0.8, 5.0])
+    with back_col:
+        if st.button(" رجوع", key="btn_back_meter", use_container_width=True):
             params = {}
             # Capture view mode if present
             view_mode = st.query_params.get("view")
@@ -65,13 +73,6 @@ def render_meter_details(
             if params:
                 st.query_params.update(**params)
             st.rerun()
-
-    with hdr_center:
-        display_title = mosque_name if mosque_name else f"العداد: {meter_id_str}"
-        st.markdown(
-            f'<div style="text-align:center;"><span style="font-size:38px;font-weight:700;">تفاصيل {display_title}</span></div>',
-            unsafe_allow_html=True,
-        )
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
@@ -111,7 +112,6 @@ def render_meter_details(
 
     q_start, q_end = config.QUARTER_DATES[quarter_param]
 
-    lon_col, lat_col = find_coord_cols(metadata)
     lon_col, lat_col = find_coord_cols(metadata)
     # Adjust columns for RTL: [Spacer, Card (Right), Spacer, Map (Left), Spacer]
     # Centering the content as requested
@@ -213,7 +213,7 @@ def render_meter_details(
     table_html = f'<table class="nice-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
     st.markdown(f"<div class='table-wrapper'>{table_html}</div>", unsafe_allow_html=True)
 
-    st.markdown("### إجمالي الفواتير لكل ربع")
+    st.markdown("### الفواتير لكل ربع")
     if not merged_df.empty:
         fig_line = px.line(
             merged_df,
@@ -230,15 +230,19 @@ def render_meter_details(
             marker=dict(size=10, color="#456E58"),
         )
         fig_line.update_layout(
-            margin=dict(t=10, b=10, l=10, r=10),
+            margin=dict(t=20, b=20, l=80, r=20),
             height=380,
-            xaxis_title="الربع",
-            yaxis_title="قيمة الفاتورة",
+            xaxis_title="<b>الربع</b>",
+            yaxis_title="<b>قيمة الفاتورة</b>",
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="Tajawal", size=14, color="#1a2f29"),
+            font=dict(family="Tajawal, sans-serif", size=14, color="#1a2f29"),
         )
-        fig_line.update_yaxes(showgrid=True, gridcolor="#e0e0e0")
+        fig_line.update_yaxes(
+            showgrid=True, 
+            gridcolor="#e0e0e0",
+            title_standoff=49
+        )
         render_plotly_chart(fig_line, width_mode="stretch")
 
     st.stop()

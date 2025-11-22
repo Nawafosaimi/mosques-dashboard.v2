@@ -23,15 +23,20 @@ def _prepare_marker_data(mosque_records, lat_col, lon_col, province_param, sel_q
         lat = float(row[lat_col])
         lon = float(row[lon_col])
         
-        # Create simple popup with mosque info (navigation handled by Streamlit button below map)
+        # Create popup with mosque info and direct link to meter details page
+        from urllib.parse import quote_plus
+        meter_link = f"?meter={quote_plus(meter_id)}&province={quote_plus(province_param)}&quarter={quote_plus(sel_q_map)}"
+        
         popup_html = f"""
         <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
         <div style="font-family:'Tajawal',sans-serif;direction:rtl;min-width:200px;background:#faf8f3;border:1px solid #e1d9c6;border-radius:12px;padding:12px;text-align:center">
             <h4 style="margin:0 0 8px 0;color:#2b5d4a;font-size:15px;border-bottom:2px solid #0B9444;padding-bottom:4px;font-weight:700;font-family:'Tajawal',sans-serif">معلومات المسجد</h4>
             <p style="margin:5px 0;font-size:13px;font-family:'Tajawal',sans-serif"><b style="color:#2b5d4a">اسم المسجد:</b><br><span style="color:#1a2f29">{mosque_name}</span></p>
             <p style="margin:5px 0 10px 0;font-size:13px;font-family:'Tajawal',sans-serif"><b style="color:#2b5d4a">رقم العداد:</b><br><span style="color:#1a2f29">{meter_id}</span></p>
-            <div style="margin-top:8px;padding:6px;background:#f0f0f0;border-radius:4px;font-size:11px;color:#666;font-family:'Tajawal',sans-serif">
-                اضغط على الزر أدناه للتفاصيل
+            <div style="margin-top:10px">
+                <a href="{meter_link}" target="_self" style="display:inline-block;background:#0B9444;color:white;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;font-family:'Tajawal',sans-serif">
+                    عرض التفاصيل ←
+                </a>
             </div>
         </div>
         """

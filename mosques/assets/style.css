@@ -42,6 +42,53 @@
   color-scheme: light;
 }
 
+/* Beige scrollbar styling for all pages */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.stApp::-webkit-scrollbar,
+div[data-testid="stAppViewContainer"]::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+.stApp::-webkit-scrollbar-track,
+div[data-testid="stAppViewContainer"]::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: #faf8f3 !important;
+  border-radius: 10px !important;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+.stApp::-webkit-scrollbar-thumb,
+div[data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background: #E3DCC5 !important;
+  border-radius: 10px !important;
+  border: 2px solid #faf8f3 !important;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+.stApp::-webkit-scrollbar-thumb:hover,
+div[data-testid="stAppViewContainer"]::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover {
+  background: #d1c9b0 !important;
+}
+
+/* Firefox scrollbar */
+html,
+body,
+.stApp,
+div[data-testid="stAppViewContainer"],
+* {
+  scrollbar-width: thin !important;
+  scrollbar-color: #E3DCC5 #faf8f3 !important;
+}
+
 html,
 body,
 .stApp,
@@ -312,11 +359,6 @@ div[data-testid="stDialog"] .stFileUploader button {
   font-family: 'Tajawal', sans-serif;
 }
 
-.nice-table thead tr {
-  background-color: #FAF8F3;
-  color: #ffffff;
-  text-align: right;
-}
 
 .nice-table th {
   position: sticky !important;
