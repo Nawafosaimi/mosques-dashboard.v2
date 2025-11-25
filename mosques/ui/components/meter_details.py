@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from urllib.parse import quote_plus
 
-import folium
-from folium.features import DivIcon
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+import folium
 from streamlit_folium import st_folium
 
 import config
@@ -110,11 +110,15 @@ def render_meter_details(
 
 
 
-    q_start, q_end = config.QUARTER_DATES[quarter_param]
+    # Get overall date range (First Quarter Start -> Last Quarter End)
+    first_q = config.QUARTERS[0]
+    last_q = config.QUARTERS[-1]
+    
+    overall_start = config.QUARTER_DATES[first_q][0].strftime("%Y-%m-%d")
+    overall_end = config.QUARTER_DATES[last_q][1].strftime("%Y-%m-%d")
 
     lon_col, lat_col = find_coord_cols(metadata)
-    # Adjust columns for RTL: [Spacer, Card (Right), Spacer, Map (Left), Spacer]
-    # Centering the content as requested
+
     _, cinfo1, _, cinfo2, _ = st.columns([0.5, 1, 0.2, 1.5, 0.5])
     with cinfo1:
         if not meta_row.empty:
@@ -127,6 +131,7 @@ def render_meter_details(
                     f"<div class='meter-value'>{province_name}</div>"
                     "<div class='meter-label'>إجمالي الفواتير</div>"
                     f"<div class='meter-value highlight'>{int(total_bill):,} ريال</div>"
+                    f"<div style='font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 12px;'>(من {first_q} إلى {last_q})</div>"
                     "</div>"
                 ),
                 unsafe_allow_html=True,
@@ -142,33 +147,54 @@ def render_meter_details(
             and pd.notna(meta_row.iloc[0][lat_col])
         ):
             lon, lat = float(meta_row.iloc[0][lon_col]), float(meta_row.iloc[0][lat_col])
-            fmap = folium.Map(
-                location=[lat, lon],
-                zoom_start=12,
-                tiles="CartoDB Positron",
-                zoom_control=True,
+            
+            # Create Folium Map (Static)
+            m = folium.Map(
+                location=[lat, lon], 
+                zoom_start=15, 
+                tiles="CartoDB positron",
                 dragging=False,
+                zoom_control=False,
                 scrollWheelZoom=False,
-                doubleClickZoom=False,
-                touchZoom=False,
+                doubleClickZoom=False
             )
-
-            popup_html = (
-                f"<div style='min-width:160px;font-family:Tajawal;'>"
-                f"<strong>{mosque_name or meter_id_str}</strong><br>"
-            )
-            if location_link:
-                popup_html += f"<a href='{location_link}' target='_blank'>فتح الموقع</a>"
-            else:
-                popup_html += meter_id_str
-            popup_html += "</div>"
-
+            
+            # Add marker (Regular Pin)
             folium.Marker(
                 [lat, lon],
-                tooltip=f"{meter_id_str}",
-                popup=folium.Popup(popup_html, max_width=250),
-            ).add_to(fmap)
-            st_folium(fmap, width=None, height=250)
+            ).add_to(m)
+            
+            # Display the map
+            st_folium(m, height=250, width=None, key="meter_map")
+            
+            # Add location link (Styled like the "Back" button)
+            if location_link:
+                st.markdown(
+                    f"""
+                    <div style="text-align:center; margin-top:16px;">
+                        <a href="{location_link}" target="_blank" 
+                           style="
+                                display: inline-block;
+                                background-color: #f4efe2;
+                                color: #1a2f29;
+                                border: 1px solid #e1d9c6;
+                                border-radius: 8px;
+                                padding: 6px 24px;
+                                text-decoration: none;
+                                font-family: 'Tajawal', sans-serif;
+                                font-size: 15px;
+                                font-weight: 400;
+                                transition: all 0.2s ease;
+                           "
+                           onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
+                           onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
+                        >
+                            فتح الموقع في خرائط قوقل
+                        </a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
         else:
             st.info("لا تتوفر إحداثيات X,Y لهذا العداد.")
     st.markdown("### ملخص الأرباع")

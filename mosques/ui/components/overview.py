@@ -10,6 +10,7 @@ from streamlit_folium import st_folium
 import config
 from ui.utils import render_plotly_chart
 from .quarter_upload import render_quarter_upload
+from .kpi_card import render_kpi_card
 
 
 @st.dialog("إضافة ربع جديد")
@@ -149,28 +150,19 @@ def render_overview(
         kpi_left, kpi_right = st.columns([1, 1.2], gap="medium")
         
         with kpi_left:
-            st.markdown(
-            (
-                "<div class='kpi'>"
-                "<div class='t'><b>عدد المساجد في المملكة</b></div> "
-                f"<div class='v'>{total_mosques_overview:,}</div>"
-                f"{mosques_delta_html}"
-                "</div>"
-            ),
-            unsafe_allow_html=True,
-        )
+            render_kpi_card(
+                title="عدد المساجد في المملكة",
+                value=f"{total_mosques_overview:,}",
+                delta_html=mosques_delta_html
+            )
         
         with kpi_right:
-            st.markdown(
-                (
-                    "<div class='kpi'>"
-                    "<div class='t'><b>عدد المساجد المتجاوزة في منطقة الرياض</b></div>"
-                    f"<div class='v red'>{violations_count_overview:,}</div>"
-                    f"{violations_delta_html}"
-                    "</div>"
-                ),
-            unsafe_allow_html=True,
-        )
+            render_kpi_card(
+                title="عدد المساجد المتجاوزة في منطقة الرياض",
+                value=f"{violations_count_overview:,}",
+                delta_html=violations_delta_html,
+                value_color_class="red"
+            )
 
     col_map, col_bar = st.columns([1, 1], gap="medium")
 
@@ -281,7 +273,7 @@ def render_overview(
     quarter_labels = config.QUARTERS
     quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in config.QUARTERS]
 
-    # Create DataFrame for Plotly Express to match meter_details.py style
+    # line chart for number of violators per quarter
     chart_df = pd.DataFrame({
         "الربع": quarter_labels,
         "count": quarter_values

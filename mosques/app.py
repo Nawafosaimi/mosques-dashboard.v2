@@ -30,6 +30,7 @@ def main():
     # 1. Page config + styles (must be first)
     st.set_page_config(
         page_title="لوحة متابعة المساجد",
+        page_icon="assets/favicon.png",
         layout="wide",
         initial_sidebar_state="collapsed",
     )

@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ===== Mapbox Configuration =====
+
+MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", "")
+MAPBOX_STYLE = "mapbox://styles/mapbox/light-v11"  # or streets-v11, outdoors-v11
+
 # ===== Paths =====
 
 BASE_DIR = Path(__file__).resolve().parent

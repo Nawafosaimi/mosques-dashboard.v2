@@ -11,6 +11,7 @@ import streamlit as st
 import config
 from domain import localize_booleans
 from .quarter_upload import render_quarter_upload
+from .kpi_card import render_kpi_card
 
 
 @st.dialog("إضافة ربع جديد")
@@ -163,27 +164,18 @@ def render_province_details(
         k1, k2 = st.columns([1, 1.2], gap="medium")
 
         with k1:
-            st.markdown(
-                (
-                    "<div class='kpi'>"
-                    "<div class='t'><b>عدد المساجد</b></div>"
-                    f"<div class='v'>{total_mosques:,}</div>"
-                    f"{mosques_delta_html}"
-                    "</div>"
-                ),
-                unsafe_allow_html=True,
+            render_kpi_card(
+                title="عدد المساجد",
+                value=f"{total_mosques:,}",
+                delta_html=mosques_delta_html
             )
 
         with k2:
-            st.markdown(
-                (
-                    "<div class='kpi'>"
-                    "<div class='t'><b>عدد المساجد المتجاوزة</b></div>"
-                    f"<div class='v red'>{violations_count:,}</div>"
-                    f"{violations_delta_html}"
-                    "</div>"
-                ),
-                unsafe_allow_html=True,
+            render_kpi_card(
+                title="عدد المساجد المتجاوزة",
+                value=f"{violations_count:,}",
+                delta_html=violations_delta_html,
+                value_color_class="red"
             )
 
     # Prepare display dataframe
@@ -296,7 +288,7 @@ def render_province_details(
             st.warning(f"Available columns: {list(display.columns)}")
 
         if "المحافظة_الورقة" in display.columns:
-            _control_label("المنطقة")
+            _control_label("اتجاة المحافظات")
             sheet_options = ["الكل"] + sorted(
                 display["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
             )
@@ -307,7 +299,7 @@ def render_province_details(
                 sheet_idx = 0
 
             selected_sheet = st.selectbox(
-                "المنطقة",
+                "اتجاة المحافظات",
                 sheet_options,
                 index=sheet_idx,
                 label_visibility="collapsed",

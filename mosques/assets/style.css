@@ -1125,3 +1125,18 @@ div[data-testid="stTextInput"] input:focus {
     color: #1a2f29 !important;
   }
 }
+
+/* Fix Plotly Modebar Icon Colors - Stronger Selector */
+.js-plotly-plot .plotly .modebar-btn svg path,
+.js-plotly-plot .plotly .modebar-btn path {
+  fill: #4a5b52 !important;
+  stroke: #4a5b52 !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn.active svg path,
+.js-plotly-plot .plotly .modebar-btn:hover svg path,
+.js-plotly-plot .plotly .modebar-btn.active path,
+.js-plotly-plot .plotly .modebar-btn:hover path {
+  fill: #0B9444 !important;
+  stroke: #0B9444 !important;
+}
