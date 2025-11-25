@@ -21,8 +21,8 @@ def render_province_map(
         return False
 
     # --- Header & Controls ---
-    top_l, top_c, top_r = st.columns([1, 2, 1])
-    with top_l:
+    col_back, col_title, col_filter = st.columns([1, 2, 1])
+    with col_back:
         if st.button("رجوع", key="btn_back_from_map"):
             back_q = st.query_params.get("quarter", config.QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)

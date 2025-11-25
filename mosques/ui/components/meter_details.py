@@ -156,16 +156,19 @@ def render_meter_details(
                 dragging=False,
                 zoom_control=False,
                 scrollWheelZoom=False,
-                doubleClickZoom=False
+                doubleClickZoom=False,
+                touchZoom=False,
+                boxZoom=False,
+                keyboard=False
             )
             
-            # Add marker (Regular Pin)
+            # Add simple marker without tooltip/popup
             folium.Marker(
                 [lat, lon],
             ).add_to(m)
             
             # Display the map
-            st_folium(m, height=250, width=None, key="meter_map")
+            st_folium(m, height=250, width="100%", key="meter_map", returned_objects=[])
             
             # Add location link (Styled like the "Back" button)
             if location_link:
