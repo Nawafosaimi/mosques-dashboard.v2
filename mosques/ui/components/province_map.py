@@ -21,12 +21,9 @@ def render_province_map(
         return False
 
     # --- Header & Controls ---
-    # Layout: [Back Button] [Title (Centered)] [Quarter Selector]
-    # Using symmetrical columns to ensure perfect centering
-    col_back, col_title, col_filter = st.columns([1.5, 3, 1.5], gap="medium")
-
-    with col_back:
-        if st.button(" رجوع", key="btn_back_from_map", use_container_width=True):
+    top_l, top_c, top_r = st.columns([1, 2, 1])
+    with top_l:
+        if st.button("رجوع", key="btn_back_from_map"):
             back_q = st.query_params.get("quarter", config.QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)
             if "view" in st.query_params:
@@ -163,8 +160,8 @@ def render_province_map(
             enabled=True,
             color="#0B9444", 
             opacity=0.95,
-            step=50, # Increased radius to group more points (bigger numbers)
-            size=20, # Visual size
+            step=10011, # Increased radius to group more points (bigger numbers)
+            size=25, # Visual size
         )
     ))
 
@@ -199,20 +196,14 @@ def render_province_map(
     selected_points = selection.get("selection", {}).get("points", [])
     
     if selected_points:
-        # Get the first selected point
+        # Get the first selected point (assuming single select or taking first)
         point = selected_points[0]
+        # In Scattermapbox, 'point_index' maps back to the dataframe
+        point_index = point.get("point_index")
         
-        # Try to get meter_id directly from customdata (most reliable)
-        if "customdata" in point:
-            clicked_meter_id = point["customdata"]
-            # Instant redirect to meter details page
-            st.query_params.update(meter=clicked_meter_id, province=province_param, quarter=sel_q_map)
-            st.rerun()
-            
-        # Fallback to point_index if customdata is missing
-        elif "point_index" in point:
-            point_index = point["point_index"]
+        if point_index is not None:
             clicked_meter_id = mosque_df.iloc[point_index]["METER_ID_STR"]
+            # Instant redirect to meter details page
             st.query_params.update(meter=clicked_meter_id, province=province_param, quarter=sel_q_map)
             st.rerun()
 
