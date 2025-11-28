@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-import plotly.express as px
-import plotly.graph_objects as go
+import folium
+from folium.plugins import MarkerCluster
+from streamlit_folium import st_folium
 import json
 
 import config
@@ -106,105 +107,202 @@ def render_province_map(
         zoom_level = 6
         province_geom_s = None
 
-    # --- Plotly Map Construction ---
+    # --- Folium Map Construction ---
     
-    # Base Map Configuration
-    fig = go.Figure()
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=zoom_level,
+        tiles="CartoDB positron",
+        control_scale=True
+    )
 
-    # 1. Add Province Boundary (Polygon)
-    if province_geom_s is not None:
-        # Convert Shapely geometry to GeoJSON
-        geo_json = json.loads(json.dumps(province_geom_s.__geo_interface__))
-        
-        # We need to wrap it in a FeatureCollection for Plotly
-        feature_collection = {
-            "type": "FeatureCollection",
-            "features": [{"type": "Feature", "geometry": geo_json, "id": "province_boundary"}]
+    # Inject Custom CSS for Font and Popup Styling
+    map_custom_css = """
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Force font on everything in the map */
+        .leaflet-container {
+            font-family: 'Tajawal', sans-serif !important;
         }
-
-        fig.add_trace(go.Choroplethmapbox(
-            geojson=feature_collection,
-            locations=["province_boundary"],
-            z=[1], # Dummy value
-            colorscale=[[0, "rgba(11, 148, 68, 0.1)"], [1, "rgba(11, 148, 68, 0.1)"]],
-            showscale=False,
-            marker_line_color="#0B9444",
-            marker_line_width=2,
-            hoverinfo="skip"
-        ))
-
-    # 2. Add Mosque Markers (Clean Premium View)
-    # We use Scattermapbox for clickable points
-    fig.add_trace(go.Scattermapbox(
-        lat=mosque_df[lat_col],
-        lon=mosque_df[lon_col],
-        mode='markers',
-        marker=go.scattermapbox.Marker(
-            size=16,
-            color='#0B9444', # Brand Green
-            opacity=0.95,
-            allowoverlap=True,
-        ),
-        text=mosque_df["Name"],
-        customdata=mosque_df["METER_ID_STR"],
-        hovertemplate=(
-            "<b>%{text}</b><br>" +
-            "رقم العداد: %{customdata}<br>" +
-            "<extra></extra>" # Hides the secondary box
-        ),
-        name="المساجد",
-        # IDs for selection
-        ids=mosque_df["METER_ID_STR"],
-        # Enable Native Clustering
-        cluster=dict(
-            enabled=True,
-            color="#0B9444", 
-            opacity=0.95,
-            step=10011, # Increased radius to group more points (bigger numbers)
-            size=25, # Visual size
-        )
-    ))
-
-    # Layout Configuration
-    fig.update_layout(
-        mapbox=dict(
-            style="carto-positron", # Premium clean style
-            center=dict(lat=center_lat, lon=center_lon),
-            zoom=zoom_level,
-        ),
-        margin={"r": 0, "t": 0, "l": 0, "b": 0},
-        height=700,
-        showlegend=False,
-        clickmode='event+select' # Enable selection events
-    )
-
-    # --- Render & Handle Interaction ---
-    
-    # Use st.plotly_chart with selection handling
-    # Note: 'on_select' is available in recent Streamlit versions.
-    # If using an older version, we might need a fallback, but we'll assume modern.
-    
-    selection = st.plotly_chart(
-        fig,
-        use_container_width=True,
-        on_select="rerun", # Rerun app when a point is selected
-        key=f"map_selection_{province_param}_{sel_q_map}",
-        config={'scrollZoom': True, 'displayModeBar': True}
-    )
-
-    # Check for selection and redirect instantly
-    selected_points = selection.get("selection", {}).get("points", [])
-    
-    if selected_points:
-        # Get the first selected point (assuming single select or taking first)
-        point = selected_points[0]
-        # In Scattermapbox, 'point_index' maps back to the dataframe
-        point_index = point.get("point_index")
         
-        if point_index is not None:
-            clicked_meter_id = mosque_df.iloc[point_index]["METER_ID_STR"]
-            # Instant redirect to meter details page
-            st.query_params.update(meter=clicked_meter_id, province=province_param, quarter=sel_q_map)
-            st.rerun()
+        /* Customize the popup wrapper to match theme */
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: #faf8f3 !important;
+            color: #1a2f29 !important;
+            border-radius: 12px !important;
+            padding: 0 !important; /* Remove default padding */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        }
+        
+        /* Customize the popup tip */
+        .custom-popup .leaflet-popup-tip {
+            background: #faf8f3 !important;
+        }
+        
+        /* Remove default margin/width constraints from content */
+        .custom-popup .leaflet-popup-content {
+            margin: 0 !important;
+            width: auto !important;
+        }
+        
+        /* Style the close button */
+        .custom-popup .leaflet-popup-close-button {
+            color: #8a7a63 !important;
+            font-size: 18px !important;
+            padding: 8px !important;
+        }
+    </style>
+    """
+    m.get_root().html.add_child(folium.Element(map_custom_css))
+
+    # 1. Add Province Boundary
+    if province_geom_s is not None:
+        folium.GeoJson(
+            province_geom_s,
+            name="Province Boundary",
+            style_function=lambda x: {
+                "fillColor": "#0B9444",
+                "color": "#0B9444",
+                "weight": 2,
+                "fillOpacity": 0.1,
+            },
+            tooltip=ar_province_map
+        ).add_to(m)
+
+    # 2. Add Mosque Markers with FastMarkerCluster
+    # We use FastMarkerCluster with a custom JS callback to handle popups efficiently
+    # This avoids creating thousands of Marker objects in Python, which is slow.
+    
+    from folium.plugins import FastMarkerCluster
+
+    # Prepare data for FastMarkerCluster: [[lat, lon, name, meter_id], ...]
+    # Optimization: Send only raw data, generate HTML in JS to reduce payload size
+    map_data = []
+    
+    for _, row in mosque_df.iterrows():
+        meter_id = row["METER_ID_STR"]
+        name = row["Name"]
+        lat = row[lat_col]
+        lon = row[lon_col]
+        map_data.append([lat, lon, name, meter_id])
+
+    # Define JS callback to create markers with popups
+    # 'row' corresponds to an item in map_data: [lat, lon, name, meter_id]
+    # We construct the HTML entirely on the client side
+    callback = f"""
+    function (row) {{
+        var lat = row[0];
+        var lon = row[1];
+        var name = row[2];
+        var meter_id = row[3];
+        
+        // Use root-relative path '/' to ensure we link to the main app, not the iframe's path
+        var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}";
+        var google_maps_link = "https://www.google.com/maps/search/?api=1&query=" + lat + "," + lon;
+        
+        var popup_html = `
+            <div style="
+                font-family: 'Tajawal', sans-serif; 
+                direction: rtl; 
+                text-align: right; 
+                min-width: 300px;
+                padding: 12px;
+                background-color: #faf8f3;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            ">
+                <h4 style="
+                    margin: 0 0 10px 0; 
+                    color: #0B9444; 
+                    font-size: 16px; 
+                    font-weight: 700;
+                    border-bottom: 1px solid #f0f0f0;
+                    padding-bottom: 10px;
+                ">${{name}}</h4>
+                
+                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #8a7a63; font-size: 13px;">رقم العداد:</span>
+                    <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{meter_id}}</span>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <a href="${{details_link}}" target="_blank" style="
+                        flex: 1;
+                        background-color: #f4efe2; 
+                        color: #1a2f29; 
+                        padding: 8px 12px; 
+                        text-decoration: none; 
+                        border-radius: 8px; 
+                        font-size: 13px;
+                        font-weight: 600;
+                        text-align: center;
+                        transition: all 0.2s;
+                        border: 1px solid #e1d9c6;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    "
+                    onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
+                    onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
+                    >
+                        تفاصيل
+                    </a>
+                    <a href="${{google_maps_link}}" target="_blank" style="
+                        flex: 1;
+                        background-color: #f4efe2; 
+                        color: #1a2f29; 
+                        padding: 8px 12px; 
+                        text-decoration: none; 
+                        border-radius: 8px; 
+                        font-size: 13px;
+                        font-weight: 600;
+                        text-align: center;
+                        transition: all 0.2s;
+                        border: 1px solid #e1d9c6;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    "
+                    onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
+                    onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
+                    >
+                        الخريطة
+                    </a>
+                </div>
+            </div>
+        `;
+        
+        var marker = L.marker(new L.LatLng(lat, lon));
+        marker.bindPopup(popup_html, {{
+            maxWidth: 400,
+            className: 'custom-popup' 
+        }});
+        
+        var icon = L.AwesomeMarkers.icon({{
+            icon: 'mosque',
+            markerColor: 'green',
+            prefix: 'fa'
+        }});
+        marker.setIcon(icon);
+        return marker;
+    }}
+    """
+
+    FastMarkerCluster(
+        data=map_data,
+        callback=callback,
+        name="المساجد",
+        overlay=True,
+        control=False
+    ).add_to(m)
+
+    # --- Render Map ---
+    st_folium(
+        m,
+        width="100%",
+        height=700,
+        returned_objects=[], # We rely on HTML links for interaction now
+        debug=False,
+    )
 
     st.stop()

@@ -1,3 +1,9 @@
 {
-  "quarters": {}
+  "quarters": {
+    "الربع الثالث 2025": {
+      "file_path": "uploaded_quarters/الربع الثالث 2025.xlsx",
+      "start_date": "2025-07-01",
+      "end_date": "2025-09-30"
+    }
+  }
 }

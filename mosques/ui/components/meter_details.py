@@ -20,9 +20,7 @@ def render_meter_details(
     province_param: str,
     quarter_param: str,
     metadata: pd.DataFrame,
-    ts: pd.DataFrame,
     all_violator_data: dict,
-    violator_sets: dict,
 ):
     if not meter_param:
         return False
@@ -162,9 +160,10 @@ def render_meter_details(
                 keyboard=False
             )
             
-            # Add simple marker without tooltip/popup
+            # Add marker with mosque icon (same as province map)
             folium.Marker(
                 [lat, lon],
+                icon=folium.Icon(icon="mosque", prefix="fa", color="green")
             ).add_to(m)
             
             # Display the map
@@ -174,24 +173,28 @@ def render_meter_details(
             if location_link:
                 st.markdown(
                     f"""
+                    <style>
+                    .btn-google-maps {{
+                        display: inline-block;
+                        background-color: #f4efe2;
+                        color: #1a2f29 !important;
+                        border: 1px solid #e1d9c6;
+                        border-radius: 8px;
+                        padding: 6px 24px;
+                        text-decoration: none !important;
+                        font-family: 'Tajawal', sans-serif;
+                        font-size: 15px;
+                        font-weight: 400;
+                        transition: all 0.2s ease;
+                    }}
+                    .btn-google-maps:hover {{
+                        background-color: #eaddc5 !important;
+                        border-color: #d4c8b0 !important;
+                        color: #1a2f29 !important;
+                    }}
+                    </style>
                     <div style="text-align:center; margin-top:16px;">
-                        <a href="{location_link}" target="_blank" 
-                           style="
-                                display: inline-block;
-                                background-color: #f4efe2;
-                                color: #1a2f29;
-                                border: 1px solid #e1d9c6;
-                                border-radius: 8px;
-                                padding: 6px 24px;
-                                text-decoration: none;
-                                font-family: 'Tajawal', sans-serif;
-                                font-size: 15px;
-                                font-weight: 400;
-                                transition: all 0.2s ease;
-                           "
-                           onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
-                           onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
-                        >
+                        <a href="{location_link}" target="_blank" class="btn-google-maps">
                             فتح الموقع في خرائط قوقل
                         </a>
                     </div>
@@ -203,8 +206,13 @@ def render_meter_details(
     st.markdown("### ملخص الأرباع")
     merged_rows = []
     for quarter in config.QUARTERS:
-        viol = "نعم" if meter_id_str in violator_sets.get(quarter, set()) else "لا"
         df_q = all_violator_data.get(quarter, pd.DataFrame())
+        
+        viol = "لا"
+        if not df_q.empty and "رقم العداد" in df_q.columns:
+            # Check if meter exists in this quarter
+            if not df_q[df_q["رقم العداد"].astype(str) == meter_id_str].empty:
+                viol = "نعم"
 
         bill_value = "N/A"
 

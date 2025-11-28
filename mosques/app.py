@@ -85,11 +85,9 @@ def main():
         if meter_param:
             # Meter Details Route - minimal loading
             with st.spinner("⏳ جاري تحميل بيانات العداد..."):
-                metadata = load_industry_meta()
-                ts = load_timeseries()
+                metadata = load_industry_meta(meter_id=meter_param)
                 # Only load the specific quarter needed
-                all_violator_data = load_all_violator_data(quarter_files=QUARTER_FILES)
-                violator_sets, meter_to_province = precompute_helpers(all_violator_data, metadata)
+                all_violator_data = load_all_violator_data(quarter_files=QUARTER_FILES, meter_id=meter_param)
             
             # 7. NOW render UI (after data is ready)
             render_meter_details(
@@ -97,9 +95,7 @@ def main():
                 province_param=province_param,
                 quarter_param=quarter_param,
                 metadata=metadata,
-                ts=ts,
                 all_violator_data=all_violator_data,
-                violator_sets=violator_sets,
             )
             return
 

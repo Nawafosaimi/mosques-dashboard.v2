@@ -787,10 +787,6 @@ div[data-testid="stNumberInput"]>div {
   border-radius: 10px;
 }
 
-.tbl-scroll::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
 table.nice-table {
   width: 100%;
   border-collapse: collapse;
@@ -812,6 +808,7 @@ table.nice-table thead th {
   top: 0 !important;
   z-index: 10 !important;
 }
+
 
 table.nice-table tbody td {
   padding: 10px 12px;
@@ -995,19 +992,6 @@ div[data-testid="stDataFrame"] .ag-row:nth-child(even) .ag-cell {
   background: #f8f4eb !important;
 }
 
-div[data-testid="stDataFrame"] .ag-cell {
-  border-bottom: 1px solid #eef3ea !important;
-  padding-block: 14px !important;
-  font-family: 'Tajawal', sans-serif !important;
-  color: #1a2f29 !important;
-  text-align: right !important;
-}
-
-div[data-testid="stDataFrame"] .ag-row-hover .ag-cell,
-div[data-testid="stDataFrame"] .ag-row-focus .ag-cell {
-  background: rgba(11, 148, 68, 0.08) !important;
-}
-
 div[data-testid="stDataFrame"] .ag-cell a {
   color: #0b9444;
   text-decoration: none;
@@ -1139,4 +1123,20 @@ div[data-testid="stTextInput"] input:focus {
 .js-plotly-plot .plotly .modebar-btn:hover path {
   fill: #0B9444 !important;
   stroke: #0B9444 !important;
+}
+
+/* Fix Alert/Warning/Error Text Color */
+div[data-testid='stAlert'],
+div[data-testid='stAlert']>div,
+div[data-testid='stAlert'] [data-testid='stMarkdownContainer'],
+div[data-testid='stAlert'] [data-testid='stMarkdownContainer'] p,
+div[data-testid='stException'],
+div[data-testid='stException'] div {
+  color: #1a2f29 !important;
+}
+
+div[data-testid='stAlert'] svg,
+div[data-testid='stException'] svg {
+  fill: #1a2f29 !important;
+  color: #1a2f29 !important;
 }

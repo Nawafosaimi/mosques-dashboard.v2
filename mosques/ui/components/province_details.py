@@ -185,12 +185,19 @@ def render_province_details(
 
     display = localize_booleans(display)
 
+    # Fix column name and values for Period
+    if "الفترة صباحا/مساءا" in display.columns:
+        display = display.rename(columns={"الفترة صباحا/مساءا": "الفترة صباحا/مساء"})
+    
+    if "الفترة صباحا/مساء" in display.columns:
+        display["الفترة صباحا/مساء"] = display["الفترة صباحا/مساء"].replace("مساءا", "مساء")
+
     # Enforce consistent column order
     preferred_order = [
         "اسم المسجد",
         "رقم العداد",
         "المحافظة",
-        "الفترة صباحا/مساءا",
+        "الفترة صباحا/مساء",
         "قيمة الفاتورة الإجمالي",
         "مخالف سابقا",
         "الموقع",
