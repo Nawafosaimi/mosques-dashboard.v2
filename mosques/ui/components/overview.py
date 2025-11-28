@@ -201,13 +201,10 @@ def render_overview(
                 province_clicked = clicked_region.iloc[0]["province_en"]
 
         if province_clicked:
-            if province_clicked == "RIYADH PROVINCE":
-                if st.session_state.get("last_redirect") != (province_clicked, selected_quarter_overview):
-                    st.session_state["last_redirect"] = (province_clicked, selected_quarter_overview)
-                    st.query_params.update(province=province_clicked, quarter=selected_quarter_overview)
-                    st.rerun()
-            else:
-                st.toast("البيانات متاحة حاليا لمنطقة الرياض فقط.", icon="ℹ️")
+            if st.session_state.get("last_redirect") != (province_clicked, selected_quarter_overview):
+                st.session_state["last_redirect"] = (province_clicked, selected_quarter_overview)
+                st.query_params.update(province=province_clicked, quarter=selected_quarter_overview)
+                st.rerun()
 
     with col_bar:
         st.markdown("### توزيع المساجد حسب المنطقة")

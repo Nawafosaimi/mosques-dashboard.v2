@@ -62,7 +62,7 @@ REGIONS_FILE = DATA_DIR / "regions.geojson"
 SIMPLIFIED_REGIONS_FILE = Path(
     os.environ.get("MOSQUES_REGIONS_CACHE_FILE", CACHE_DIR / "regions_simplified.geojson")
 )
-REGION_SIMPLIFY_TOLERANCE = _get_float_env("REGIONS_SIMPLIFY_TOLERANCE", 0.02)
+REGION_SIMPLIFY_TOLERANCE = _get_float_env("REGIONS_SIMPLIFY_TOLERANCE", 0.005)
 
 TIMESERIES_FILE = DATA_DIR / "mosque_violations_by_day.parquet"
 INDUSTRY_META_FILE = DATA_DIR / "Industry Code with Population 1.parquet"

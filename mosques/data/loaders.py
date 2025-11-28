@@ -10,6 +10,8 @@ import openpyxl
 import pandas as pd
 import streamlit as st
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon  # type: ignore
+from shapely.ops import orient, unary_union
+from shapely.validation import make_valid
 
 from config import (
     CACHE_DIR,
@@ -65,6 +67,9 @@ def _load_or_build_simplified_regions(source_path: Path):
                 preserve_topology=True,
             )
         )
+        # Re-normalize after simplification in case it created GeometryCollections
+        gdf["geometry"] = gdf["geometry"].apply(_normalize_geometry)
+        gdf = gdf.dropna(subset=["geometry"])
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(target_path, driver="GeoJSON")
@@ -75,24 +80,51 @@ def _normalize_geometry(geom):
     if geom is None:
         return None
 
-    if isinstance(geom, GeometryCollection):
-        polygons = [g for g in geom.geoms if isinstance(g, (Polygon, MultiPolygon))]
-        if not polygons:
-            return None
-        geom = (
-            polygons[0]
-            if len(polygons) == 1
-            else MultiPolygon(
-                [
-                    poly
-                    if isinstance(poly, Polygon)
-                    else Polygon(poly.exterior.coords)
-                    for poly in polygons
-                ]
-            )
-        )
+    # Helper to extract polygons recursively
+    def _extract_polys(g):
+        polys = []
+        if isinstance(g, Polygon):
+            polys.append(g)
+        elif isinstance(g, MultiPolygon):
+            polys.extend(g.geoms)
+        elif isinstance(g, GeometryCollection):
+            for sub_g in g.geoms:
+                polys.extend(_extract_polys(sub_g))
+        return polys
 
-    return geom
+    all_polys = _extract_polys(geom)
+    
+    if not all_polys:
+        return None
+        
+    if len(all_polys) == 1:
+        final_geom = all_polys[0]
+    else:
+        final_geom = MultiPolygon(all_polys)
+        
+    # Fix invalid geometries
+    # Check for negative area (wrong winding) and manually reverse if needed
+    if final_geom.area < 0:
+        if isinstance(final_geom, Polygon):
+            final_geom = Polygon(final_geom.exterior.coords[::-1], final_geom.interiors)
+        elif isinstance(final_geom, MultiPolygon):
+            new_polys = []
+            for p in final_geom.geoms:
+                new_polys.append(Polygon(p.exterior.coords[::-1], p.interiors))
+            final_geom = MultiPolygon(new_polys)
+
+    if not final_geom.is_valid:
+        try:
+            final_geom = make_valid(final_geom)
+            if isinstance(final_geom, GeometryCollection):
+                 final_geom = _normalize_geometry(final_geom)
+        except Exception:
+            try:
+                final_geom = unary_union(final_geom)
+            except Exception:
+                final_geom = final_geom.buffer(0)
+        
+    return final_geom
 
 
 @st.cache_data

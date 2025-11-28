@@ -1,14 +1,9 @@
 {
   "quarters": {
-    "المساجد المتجاوزة في الربع الثالث لعام 2025- موزعة حسب الجهات NOT TRUE DATA - Copy": {
-      "file_path": "uploaded_quarters/المساجد المتجاوزة في الربع الثالث لعام 2025- موزعة حسب الجهات NOT TRUE DATA - Copy.xlsx",
+    "الربع الثالث 2025": {
+      "file_path": "uploaded_quarters/الربع الثالث 2025.xlsx",
       "start_date": "2025-07-01",
       "end_date": "2025-09-30"
-    },
-    "المساجد المتجاوزة في الربع الرابع لعام 2025- موزعة حسب الجهات NOT TRUE DATA": {
-      "file_path": "uploaded_quarters/المساجد المتجاوزة في الربع الرابع لعام 2025- موزعة حسب الجهات NOT TRUE DATA.xlsx",
-      "start_date": "2025-10-01",
-      "end_date": "2025-12-31"
     }
   }
 }

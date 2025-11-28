@@ -22,9 +22,9 @@ def render_province_map(
         return False
 
     # --- Header & Controls ---
-    col_back, col_title, col_filter = st.columns([1, 2, 1])
+    col_back, col_title, col_filter = st.columns([0.6, 2.8, 0.6])
     with col_back:
-        if st.button("رجوع", key="btn_back_from_map"):
+        if st.button(" رجوع", key="btn_back_from_map", use_container_width=True):
             back_q = st.query_params.get("quarter", config.QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)
             if "view" in st.query_params:
@@ -45,6 +45,7 @@ def render_province_map(
         q_idx = opts.index(q_in_url) if q_in_url in opts else 0
         
         # Styled selectbox for quarter
+        st.markdown("<p class='filter-label'>اختر الربع </p>", unsafe_allow_html=True)
         sel_q_map = st.selectbox(
             "الربع",
             opts,
@@ -245,7 +246,7 @@ def render_province_map(
                     onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
                     onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
                     >
-                        تفاصيل
+                        تفاصيل اكثر
                     </a>
                     <a href="${{google_maps_link}}" target="_blank" style="
                         flex: 1;
@@ -266,7 +267,7 @@ def render_province_map(
                     onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
                     onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
                     >
-                        الخريطة
+                        موقع قوقل ماب
                     </a>
                 </div>
             </div>
@@ -280,7 +281,7 @@ def render_province_map(
         
         var icon = L.AwesomeMarkers.icon({{
             icon: 'mosque',
-            markerColor: 'green',
+            markerColor: 'red',
             prefix: 'fa'
         }});
         marker.setIcon(icon);
