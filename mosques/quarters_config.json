@@ -5,10 +5,10 @@
       "start_date": "2025-07-01",
       "end_date": "2025-09-30"
     },
-    "الربع الرابع 2025": {
-      "file_path": "uploaded_quarters/الربع الرابع 2025.xlsx",
-      "start_date": "2025-10-01",
-      "end_date": "2025-12-31"
+    "الربع الرابع 2024": {
+      "file_path": "uploaded_quarters/الربع الرابع 2024.xlsx",
+      "start_date": "2024-10-01",
+      "end_date": "2024-12-31"
     }
   }
 }

@@ -10,6 +10,8 @@ import openpyxl
 import pandas as pd
 import streamlit as st
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon  # type: ignore
+from shapely.ops import orient, unary_union
+from shapely.validation import make_valid
 
 from config import (
     CACHE_DIR,
@@ -65,6 +67,9 @@ def _load_or_build_simplified_regions(source_path: Path):
                 preserve_topology=True,
             )
         )
+        # Re-normalize after simplification in case it created GeometryCollections
+        gdf["geometry"] = gdf["geometry"].apply(_normalize_geometry)
+        gdf = gdf.dropna(subset=["geometry"])
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(target_path, driver="GeoJSON")
@@ -75,24 +80,51 @@ def _normalize_geometry(geom):
     if geom is None:
         return None
 
-    if isinstance(geom, GeometryCollection):
-        polygons = [g for g in geom.geoms if isinstance(g, (Polygon, MultiPolygon))]
-        if not polygons:
-            return None
-        geom = (
-            polygons[0]
-            if len(polygons) == 1
-            else MultiPolygon(
-                [
-                    poly
-                    if isinstance(poly, Polygon)
-                    else Polygon(poly.exterior.coords)
-                    for poly in polygons
-                ]
-            )
-        )
+    # Helper to extract polygons recursively
+    def _extract_polys(g):
+        polys = []
+        if isinstance(g, Polygon):
+            polys.append(g)
+        elif isinstance(g, MultiPolygon):
+            polys.extend(g.geoms)
+        elif isinstance(g, GeometryCollection):
+            for sub_g in g.geoms:
+                polys.extend(_extract_polys(sub_g))
+        return polys
 
-    return geom
+    all_polys = _extract_polys(geom)
+    
+    if not all_polys:
+        return None
+        
+    if len(all_polys) == 1:
+        final_geom = all_polys[0]
+    else:
+        final_geom = MultiPolygon(all_polys)
+        
+    # Fix invalid geometries
+    # Check for negative area (wrong winding) and manually reverse if needed
+    if final_geom.area < 0:
+        if isinstance(final_geom, Polygon):
+            final_geom = Polygon(final_geom.exterior.coords[::-1], final_geom.interiors)
+        elif isinstance(final_geom, MultiPolygon):
+            new_polys = []
+            for p in final_geom.geoms:
+                new_polys.append(Polygon(p.exterior.coords[::-1], p.interiors))
+            final_geom = MultiPolygon(new_polys)
+
+    if not final_geom.is_valid:
+        try:
+            final_geom = make_valid(final_geom)
+            if isinstance(final_geom, GeometryCollection):
+                 final_geom = _normalize_geometry(final_geom)
+        except Exception:
+            try:
+                final_geom = unary_union(final_geom)
+            except Exception:
+                final_geom = final_geom.buffer(0)
+        
+    return final_geom
 
 
 @st.cache_data
@@ -105,9 +137,34 @@ def load_timeseries(path: Path | str = TIMESERIES_FILE):
 
 
 @st.cache_data
-def load_industry_meta(path: Path | str = INDUSTRY_META_FILE):
+def load_industry_meta(path: Path | str = INDUSTRY_META_FILE, meter_id: str | None = None):
     file_path = _ensure_file(Path(path), "Industry metadata parquet")
-    meta = pd.read_parquet(file_path).rename(columns={"Meter Number": "METER_ID"})
+    
+    meta = None
+    if meter_id:
+        try:
+            # Try to filter at the Parquet level
+            # The column in the file is "Meter Number" before renaming
+            try:
+                m_int = int(meter_id)
+                # Check for both string and int representations
+                filters = [("Meter Number", "in", [meter_id, m_int])]
+            except ValueError:
+                filters = [("Meter Number", "==", meter_id)]
+            
+            meta = pd.read_parquet(file_path, filters=filters)
+        except Exception:
+            # Fallback if filtering fails (e.g. column not found or other error)
+            meta = None
+
+    if meta is None:
+        meta = pd.read_parquet(file_path)
+        # If we fell back to full load but had a meter_id, filter in memory
+        if meter_id and "Meter Number" in meta.columns:
+             # We convert to string for comparison to be safe
+             meta = meta[meta["Meter Number"].astype(str) == str(meter_id)]
+
+    meta = meta.rename(columns={"Meter Number": "METER_ID"})
     meta["METER_ID_STR"] = meta["METER_ID"].astype(str)
     lon_col, lat_col = find_coord_cols(meta)
     if lon_col and lat_col:
@@ -153,12 +210,13 @@ def load_single_quarter_data(quarter: str, quarter_files: Dict[str, Path] = QUAR
 
 
 @st.cache_data
-def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES, specific_quarters: list[str] | None = None):
+def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES, specific_quarters: list[str] | None = None, meter_id: str | None = None):
     """Load violator data for all quarters or specific quarters only.
     
     Args:
         quarter_files: Dictionary mapping quarter names to file paths
         specific_quarters: Optional list of quarter names to load. If None, loads all quarters.
+        meter_id: Optional meter ID to filter by. If provided, optimizes loading by filtering at source (Parquet).
     """
     all_data: Dict[str, pd.DataFrame] = {}
     missing_sources: Dict[str, Path] = {}
@@ -175,9 +233,50 @@ def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES, speci
         cache_path = _quarter_cache_path(quarter, path)
 
         if path.exists():
-            df = _load_quarter_excel(path, quarter)
+            # If source exists, check cache validity
+            if cache_path.exists() and cache_path.stat().st_mtime >= path.stat().st_mtime:
+                # Cache is valid, use it
+                if meter_id:
+                    # Optimize: Use pushdown predicate to only load rows for this meter
+                    # We try both string and int versions of the ID to be safe
+                    try:
+                        meter_val_int = int(meter_id)
+                        filters = [("رقم العداد", "in", [meter_id, meter_val_int])]
+                    except ValueError:
+                        filters = [("رقم العداد", "==", meter_id)]
+                    
+                    try:
+                        df = pd.read_parquet(cache_path, filters=filters)
+                    except Exception:
+                        # Fallback if filtering fails (e.g. column missing in parquet schema)
+                        df = pd.read_parquet(cache_path)
+                        if "رقم العداد" in df.columns:
+                            df = df[df["رقم العداد"].astype(str) == str(meter_id)]
+                else:
+                    df = pd.read_parquet(cache_path)
+            else:
+                # Cache invalid or missing, load from Excel (slow)
+                df = _load_quarter_excel(path, quarter)
+                # Filter in memory after loading full file (so cache is saved correctly in _load_quarter_excel)
+                if meter_id and df is not None and not df.empty and "رقم العداد" in df.columns:
+                    df = df[df["رقم العداد"].astype(str) == str(meter_id)]
         elif cache_path.exists():
-            df = pd.read_parquet(cache_path)
+            # Only cache exists (source missing)
+            if meter_id:
+                try:
+                    meter_val_int = int(meter_id)
+                    filters = [("رقم العداد", "in", [meter_id, meter_val_int])]
+                except ValueError:
+                    filters = [("رقم العداد", "==", meter_id)]
+                
+                try:
+                    df = pd.read_parquet(cache_path, filters=filters)
+                except Exception:
+                    df = pd.read_parquet(cache_path)
+                    if "رقم العداد" in df.columns:
+                        df = df[df["رقم العداد"].astype(str) == str(meter_id)]
+            else:
+                df = pd.read_parquet(cache_path)
         else:
             missing_sources[quarter] = path
             continue
@@ -194,17 +293,24 @@ def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES, speci
             f"{missing_list}"
         )
 
-    if not all_data:
+    if not all_data and not missing_sources:
+         # If we have no data but also no missing sources (e.g. empty folder?), just return empty
+         pass
+    elif not all_data and missing_sources:
+        # If everything is missing
         raise DataFileError(
             "لم يتم العثور على أي ملف بيانات للمخالفات. تحقق من المسارات في config.py."
         )
 
-    all_cols = set().union(*(df.columns for df in all_data.values()))
-    for quarter in all_data:
-        for col in all_cols:
-            if col not in all_data[quarter].columns:
-                all_data[quarter][col] = pd.NA
-        all_data[quarter] = all_data[quarter][list(all_cols)]
+    # Ensure columns consistency (only if we have data)
+    if all_data:
+        all_cols = set().union(*(df.columns for df in all_data.values()))
+        for quarter in all_data:
+            for col in all_cols:
+                if col not in all_data[quarter].columns:
+                    all_data[quarter][col] = pd.NA
+            all_data[quarter] = all_data[quarter][list(all_cols)]
+            
     return all_data
 
 

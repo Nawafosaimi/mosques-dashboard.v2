@@ -1,50 +1,15 @@
 from __future__ import annotations
 
-import folium
 import pandas as pd
 import streamlit as st
-from folium.plugins import FastMarkerCluster
+import folium
+from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
+import json
 
 import config
 from data import find_coord_cols
 from domain import simplify_geom
-
-
-@st.cache_data(ttl=300)
-def _prepare_marker_data(mosque_records, lat_col, lon_col, province_param, sel_q_map):
-    """Prepare marker data for FastMarkerCluster (cached for 5 minutes)"""
-    marker_data = []
-    marker_lookup = {}
-    
-    for row in mosque_records:
-        meter_id = str(row["METER_ID_STR"])
-        mosque_name = row.get("Name", "—")
-        lat = float(row[lat_col])
-        lon = float(row[lon_col])
-        
-        # Create popup with mosque info and direct link to meter details page
-        from urllib.parse import quote_plus
-        meter_link = f"?meter={quote_plus(meter_id)}&province={quote_plus(province_param)}&quarter={quote_plus(sel_q_map)}"
-        
-        popup_html = f"""
-        <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
-        <div style="font-family:'Tajawal',sans-serif;direction:rtl;min-width:200px;background:#faf8f3;border:1px solid #e1d9c6;border-radius:12px;padding:12px;text-align:center">
-            <h4 style="margin:0 0 8px 0;color:#2b5d4a;font-size:15px;border-bottom:2px solid #0B9444;padding-bottom:4px;font-weight:700;font-family:'Tajawal',sans-serif">معلومات المسجد</h4>
-            <p style="margin:5px 0;font-size:13px;font-family:'Tajawal',sans-serif"><b style="color:#2b5d4a">اسم المسجد:</b><br><span style="color:#1a2f29">{mosque_name}</span></p>
-            <p style="margin:5px 0 10px 0;font-size:13px;font-family:'Tajawal',sans-serif"><b style="color:#2b5d4a">رقم العداد:</b><br><span style="color:#1a2f29">{meter_id}</span></p>
-            <div style="margin-top:10px">
-                <a href="{meter_link}" target="_self" style="display:inline-block;background:#0B9444;color:white;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;font-family:'Tajawal',sans-serif">
-                    عرض التفاصيل ←
-                </a>
-            </div>
-        </div>
-        """
-        
-        marker_data.append([lat, lon, popup_html])
-        marker_lookup[(round(lat, 6), round(lon, 6))] = meter_id
-    
-    return marker_data, marker_lookup
 
 
 def render_province_map(
@@ -56,27 +21,33 @@ def render_province_map(
     if st.query_params.get("view", "") != "map" or not province_param:
         return False
 
-    top_l, top_c, top_r = st.columns([1, 2, 1])
-    with top_l:
-        if st.button("رجوع", key="btn_back_from_map"):
+    # --- Header & Controls ---
+    col_back, col_title, col_filter = st.columns([0.6, 2.8, 0.6])
+    with col_back:
+        if st.button(" رجوع", key="btn_back_from_map", use_container_width=True):
             back_q = st.query_params.get("quarter", config.QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)
             if "view" in st.query_params:
                 del st.query_params["view"]
             st.rerun()
-    with top_c:
+
+    with col_title:
         ar_province_map = regions.loc[regions["province_en"] == province_param, "name_ar"].iloc[0]
         st.markdown(
-            f"<h2 style='text-align:center;'>الخريطة التفاعلية {ar_province_map}</h2>",
+            f"<h2 style='text-align:center; margin: 0; padding-top: 5px; color: #1a2f29;'>{ar_province_map}</h2>",
             unsafe_allow_html=True,
         )
-    with top_r:
+
+    with col_filter:
         all_label = "كل الأرباع"
         opts = [all_label] + config.QUARTERS
         q_in_url = st.query_params.get("quarter", config.QUARTERS[0])
         q_idx = opts.index(q_in_url) if q_in_url in opts else 0
+        
+        # Styled selectbox for quarter
+        st.markdown("<p class='filter-label'>اختر الربع </p>", unsafe_allow_html=True)
         sel_q_map = st.selectbox(
-            "الربع على الخريطة",
+            "الربع",
             opts,
             index=q_idx,
             label_visibility="collapsed",
@@ -88,6 +59,7 @@ def render_province_map(
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
+    # --- Data Preparation ---
     if sel_q_map == "كل الأرباع":
         table_q_all_provinces = pd.concat(all_violator_data.values(), ignore_index=True)
     else:
@@ -119,134 +91,219 @@ def render_province_map(
 
     mosque_df[lat_col] = mosque_df[lat_col].astype(float)
     mosque_df[lon_col] = mosque_df[lon_col].astype(float)
-    
-    # Create marker lookup for click handling
-    marker_lookup = {
-        (round(row[lat_col], 6), round(row[lon_col], 6)): str(row["METER_ID_STR"])
-        for _, row in mosque_df.iterrows()
-    }
+    mosque_df["METER_ID_STR"] = mosque_df["METER_ID_STR"].astype(str)
+    mosque_df["Name"] = mosque_df["Name"].fillna("—")
 
-    # Reset map state if returning from a redirect
-    if "last_meter_redirect" in st.session_state:
-        del st.session_state["last_meter_redirect"]
-        st.session_state.province_map_nonce = st.session_state.get("province_map_nonce", 0) + 1
-
-    if "province_map_nonce" not in st.session_state:
-        st.session_state.province_map_nonce = 0
-
+    # --- Map Center & Zoom ---
     try:
         province_geom = regions[regions["province_en"] == province_param].iloc[0].geometry
         province_geom_s = simplify_geom(province_geom, tolerance=0.02)
-        map_center = [province_geom_s.centroid.y, province_geom_s.centroid.x]
+        # Calculate centroid for initial view
+        center_lat = province_geom_s.centroid.y
+        center_lon = province_geom_s.centroid.x
+        zoom_level = 6
     except Exception:
-        map_center = [mosque_df[lat_col].mean(), mosque_df[lon_col].mean()]
+        center_lat = mosque_df[lat_col].mean()
+        center_lon = mosque_df[lon_col].mean()
+        zoom_level = 6
         province_geom_s = None
 
-    map_key = f"province_map_{province_param}_{sel_q_map}_{st.session_state.province_map_nonce}"
-    fmap = folium.Map(location=map_center, zoom_start=7, tiles="CartoDB positron")
+    # --- Folium Map Construction ---
     
-    # Add custom CSS for pin icons
-    custom_css = """
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=zoom_level,
+        tiles="CartoDB positron",
+        control_scale=True
+    )
+
+    # Inject Custom CSS for Font and Popup Styling
+    map_custom_css = """
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        .custom-pin-icon {
-            background: none;
-            border: none;
+        /* Force font on everything in the map */
+        .leaflet-container {
+            font-family: 'Tajawal', sans-serif !important;
         }
-        .custom-pin-icon i {
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        
+        /* Customize the popup wrapper to match theme */
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: #faf8f3 !important;
+            color: #1a2f29 !important;
+            border-radius: 12px !important;
+            padding: 0 !important; /* Remove default padding */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        }
+        
+        /* Customize the popup tip */
+        .custom-popup .leaflet-popup-tip {
+            background: #faf8f3 !important;
+        }
+        
+        /* Remove default margin/width constraints from content */
+        .custom-popup .leaflet-popup-content {
+            margin: 0 !important;
+            width: auto !important;
+        }
+        
+        /* Style the close button */
+        .custom-popup .leaflet-popup-close-button {
+            color: #8a7a63 !important;
+            font-size: 18px !important;
+            padding: 8px !important;
         }
     </style>
     """
-    fmap.get_root().html.add_child(folium.Element(custom_css))
-    
-    # Add province boundary
+    m.get_root().html.add_child(folium.Element(map_custom_css))
+
+    # 1. Add Province Boundary
     if province_geom_s is not None:
-        try:
-            folium.GeoJson(
-                data=province_geom_s.__geo_interface__,
-                name="حدود المنطقة",
-                style_function=lambda x: {"color": "#0B9444", "weight": 1.5, "fillOpacity": 0.04},
-            ).add_to(fmap)
-        except Exception:
-            pass
+        folium.GeoJson(
+            province_geom_s,
+            name="Province Boundary",
+            style_function=lambda x: {
+                "fillColor": "#0B9444",
+                "color": "#0B9444",
+                "weight": 2,
+                "fillOpacity": 0.1,
+            },
+            tooltip=ar_province_map
+        ).add_to(m)
 
-    # Prepare marker data using cached function
-    marker_data, marker_lookup = _prepare_marker_data(
-        mosque_df.to_dict('records'),  # Convert to dict for caching
-        lat_col,
-        lon_col,
-        province_param,
-        sel_q_map
-    )
+    # 2. Add Mosque Markers with FastMarkerCluster
+    # We use FastMarkerCluster with a custom JS callback to handle popups efficiently
+    # This avoids creating thousands of Marker objects in Python, which is slow.
     
-    # JavaScript callback to create custom pin icons
-    callback = """\
-    function (row) {
-        // Create a custom red pin icon using DivIcon with FontAwesome
-        var icon = L.divIcon({
-            html: '<i class="fa-solid fa-map-pin" style="color: #ff0000; font-size: 24px;"></i>',
-            iconSize: [24, 24],
-            iconAnchor: [12, 24],
-            popupAnchor: [0, -24],
-            className: 'custom-pin-icon'
-        });
-        var marker = L.marker(new L.LatLng(row[0], row[1]), {icon: icon});
-        marker.bindPopup(row[2], {maxWidth: 300});
-        return marker;
-    }
-    """
+    from folium.plugins import FastMarkerCluster
+
+    # Prepare data for FastMarkerCluster: [[lat, lon, name, meter_id], ...]
+    # Optimization: Send only raw data, generate HTML in JS to reduce payload size
+    map_data = []
     
-    # Add FastMarkerCluster with custom pin icons
-    FastMarkerCluster(
-        data=marker_data,
-        callback=callback,
-        name="مساجد مخالفة"
-    ).add_to(fmap)
+    for _, row in mosque_df.iterrows():
+        meter_id = row["METER_ID_STR"]
+        name = row["Name"]
+        lat = row[lat_col]
+        lon = row[lon_col]
+        map_data.append([lat, lon, name, meter_id])
 
-    # Display map with smart click detection
-    ms = st_folium(
-        fmap,
-        width=None,
-        height=700,
-        key=map_key,
-        returned_objects=["last_object_clicked"]
-    )
-
-    # Handle marker click - show details button below map
-    clicked_meter_id = None
-    clicked_mosque_name = None
-
-    if ms and isinstance(ms.get("last_object_clicked"), dict):
-        clicked_lat = ms["last_object_clicked"].get("lat")
-        clicked_lon = ms["last_object_clicked"].get("lng") or ms["last_object_clicked"].get("lon")
-
-        if clicked_lat is not None and clicked_lon is not None:
-            key = (round(float(clicked_lat), 6), round(float(clicked_lon), 6))
-            clicked_meter_id = marker_lookup.get(key)
-
-            if clicked_meter_id:
-                # Find mosque name for display
-                mosque_row = mosque_df[mosque_df["METER_ID_STR"].astype(str) == clicked_meter_id]
-                if not mosque_row.empty:
-                    clicked_mosque_name = mosque_row.iloc[0].get("Name", "—")
-
-    # Show navigation button when a marker is clicked
-    if clicked_meter_id:
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown(
-                f"""
-                <div style="text-align:center;font-family:'Tajawal',sans-serif;direction:rtl;padding:15px;background:#f8f9fa;border-radius:10px;border:2px solid #0B9444;">
-                    <p style="margin:0 0 5px 0;font-size:14px;color:#666;">المسجد المحدد:</p>
-                    <p style="margin:0 0 10px 0;font-size:18px;font-weight:bold;color:#2b5d4a;">{clicked_mosque_name or clicked_meter_id}</p>
+    # Define JS callback to create markers with popups
+    # 'row' corresponds to an item in map_data: [lat, lon, name, meter_id]
+    # We construct the HTML entirely on the client side
+    callback = f"""
+    function (row) {{
+        var lat = row[0];
+        var lon = row[1];
+        var name = row[2];
+        var meter_id = row[3];
+        
+        // Use root-relative path '/' to ensure we link to the main app, not the iframe's path
+        var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}";
+        var google_maps_link = "https://www.google.com/maps/search/?api=1&query=" + lat + "," + lon;
+        
+        var popup_html = `
+            <div style="
+                font-family: 'Tajawal', sans-serif; 
+                direction: rtl; 
+                text-align: right; 
+                min-width: 300px;
+                padding: 12px;
+                background-color: #faf8f3;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            ">
+                <h4 style="
+                    margin: 0 0 10px 0; 
+                    color: #0B9444; 
+                    font-size: 16px; 
+                    font-weight: 700;
+                    border-bottom: 1px solid #f0f0f0;
+                    padding-bottom: 10px;
+                ">${{name}}</h4>
+                
+                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #8a7a63; font-size: 13px;">رقم العداد:</span>
+                    <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{meter_id}}</span>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
-            if st.button("المزيد من التفاصيل ←", key="btn_goto_meter", type="primary", use_container_width=True):
-                st.query_params.update(meter=clicked_meter_id, province=province_param, quarter=sel_q_map)
-                st.rerun()
+                
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <a href="${{details_link}}" target="_blank" style="
+                        flex: 1;
+                        background-color: #f4efe2; 
+                        color: #1a2f29; 
+                        padding: 8px 12px; 
+                        text-decoration: none; 
+                        border-radius: 8px; 
+                        font-size: 13px;
+                        font-weight: 600;
+                        text-align: center;
+                        transition: all 0.2s;
+                        border: 1px solid #e1d9c6;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    "
+                    onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
+                    onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
+                    >
+                        تفاصيل اكثر
+                    </a>
+                    <a href="${{google_maps_link}}" target="_blank" style="
+                        flex: 1;
+                        background-color: #f4efe2; 
+                        color: #1a2f29; 
+                        padding: 8px 12px; 
+                        text-decoration: none; 
+                        border-radius: 8px; 
+                        font-size: 13px;
+                        font-weight: 600;
+                        text-align: center;
+                        transition: all 0.2s;
+                        border: 1px solid #e1d9c6;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    "
+                    onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
+                    onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
+                    >
+                        موقع قوقل ماب
+                    </a>
+                </div>
+            </div>
+        `;
+        
+        var marker = L.marker(new L.LatLng(lat, lon));
+        marker.bindPopup(popup_html, {{
+            maxWidth: 400,
+            className: 'custom-popup' 
+        }});
+        
+        var icon = L.AwesomeMarkers.icon({{
+            icon: 'mosque',
+            markerColor: 'red',
+            prefix: 'fa'
+        }});
+        marker.setIcon(icon);
+        return marker;
+    }}
+    """
+
+    FastMarkerCluster(
+        data=map_data,
+        callback=callback,
+        name="المساجد",
+        overlay=True,
+        control=False
+    ).add_to(m)
+
+    # --- Render Map ---
+    st_folium(
+        m,
+        width="100%",
+        height=700,
+        returned_objects=[], # We rely on HTML links for interaction now
+        debug=False,
+    )
 
     st.stop()
-
