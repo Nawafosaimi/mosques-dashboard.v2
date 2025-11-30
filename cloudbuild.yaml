@@ -1,0 +1,11 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/mosques-dashboard-v2',
+      '-f', 'mosques/Dockerfile',
+      'mosques'
+    ]
+
+images:
+  - 'gcr.io/$PROJECT_ID/mosques-dashboard-v2'
