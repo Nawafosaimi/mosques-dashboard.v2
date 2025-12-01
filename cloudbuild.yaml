@@ -1,3 +1,5 @@
+logsBucket: gs://testing-444715-cloud-build-logs-me-central2
+
 steps:
   - name: gcr.io/cloud-builders/docker
     args: [
