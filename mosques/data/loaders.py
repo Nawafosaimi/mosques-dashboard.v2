@@ -304,6 +304,15 @@ def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES, speci
 
     # Ensure columns consistency (only if we have data)
     if all_data:
+        # First, standardize column names across all quarters
+        for quarter in all_data:
+            # Standardize the period column name (some quarters have extra "ا")
+            if "الفترة صباحا/مساءا" in all_data[quarter].columns:
+                all_data[quarter] = all_data[quarter].rename(columns={
+                    "الفترة صباحا/مساءا": "الفترة صباحا/مساء"
+                })
+        
+        # Now collect all unique columns (after standardization)
         all_cols = set().union(*(df.columns for df in all_data.values()))
         for quarter in all_data:
             for col in all_cols:
@@ -326,6 +335,19 @@ def _load_quarter_excel(path: Path, quarter: str):
         return pd.read_parquet(cache_path)
 
     wb = openpyxl.load_workbook(path, data_only=False)
+    
+    # Check if this is Quarter 3 with special structure (morning/evening sheets)
+    is_quarter_3_structure = (
+        "الفترة الصباحية" in wb.sheetnames and 
+        "الفترة المسائية" in wb.sheetnames
+    )
+    
+    if is_quarter_3_structure:
+        # Handle Quarter 3 special structure
+        df = _load_quarter_3_special(wb, quarter, cache_path)
+        return df
+    
+    # Standard loading for other quarters
     dfs = []
     for sheet_name in wb.sheetnames:
         if quarter == "الربع الرابع 2024" and sheet_name == "مدينة الرياض2":
@@ -367,6 +389,183 @@ def _load_quarter_excel(path: Path, quarter: str):
         df.to_parquet(cache_path, index=False)
         return df
     return pd.DataFrame()
+
+
+def _load_quarter_3_special(wb, quarter: str, cache_path: Path):
+    """Load Quarter 3 data with special morning/evening sheet structure."""
+    
+    # Load morning period sheet
+    morning_sheet = wb["الفترة الصباحية"]
+    morning_df = _load_sheet_data(morning_sheet, "الفترة الصباحية")
+    morning_df["الفترة صباحا/مساء"] = "صباحا"
+    # Add evening violation column with NA for morning-only mosques
+    morning_df["نسبة التجاوز في الفترة المسائية"] = pd.NA
+    
+    # Load evening period sheet
+    evening_sheet = wb["الفترة المسائية"]
+    evening_df = _load_sheet_data(evening_sheet, "الفترة المسائية")
+    evening_df["الفترة صباحا/مساء"] = "مساء"
+    # Add morning violation column with NA for evening-only mosques
+    evening_df["نسبة التجاوز في الفترة الصباحية"] = pd.NA
+    
+    # Combine both periods
+    combined_df = pd.concat([morning_df, evening_df], ignore_index=True)
+    
+    # Deduplicate mosques that appear in both periods
+    if "رقم العداد" in combined_df.columns:
+        # Find mosques that appear in both periods by checking which meters appear exactly twice
+        meter_period_groups = combined_df.groupby("رقم العداد")["الفترة صباحا/مساء"].apply(list)
+        
+        # Mosques in both periods will have ['صباحا', 'مساء'] or ['مساء', 'صباحا']
+        both_period_meters = []
+        for meter_id, periods in meter_period_groups.items():
+            if len(periods) == 2 and set(periods) == {'صباحا', 'مساء'}:
+                both_period_meters.append(meter_id)
+        
+        both_period_meters = set(both_period_meters)
+        
+        # For mosques in both periods: merge the two rows into one with both violation percentages
+        # For mosques in single period: keep as is
+        if both_period_meters:
+            # Separate mosques that appear in both periods
+            is_both_period = combined_df["رقم العداد"].isin(both_period_meters)
+            both_period_df = combined_df[is_both_period].copy()
+            single_period_df = combined_df[~is_both_period].copy()
+            
+            # For mosques in both periods, merge the rows
+            # Group by meter ID and combine the violation percentages
+            merged_rows = []
+            for meter_id in both_period_meters:
+                meter_rows = both_period_df[both_period_df["رقم العداد"] == meter_id]
+                
+                # Start with the first row as base
+                merged_row = meter_rows.iloc[0].copy()
+                merged_row["الفترة صباحا/مساء"] = "كلا الفترتين"
+                
+                # Fill in the violation percentages from both rows
+                for _, row in meter_rows.iterrows():
+                    if row["الفترة صباحا/مساء"] == "صباحا":
+                        merged_row["نسبة التجاوز في الفترة الصباحية"] = row["نسبة التجاوز في الفترة الصباحية"]
+                    elif row["الفترة صباحا/مساء"] == "مساء":
+                        merged_row["نسبة التجاوز في الفترة المسائية"] = row["نسبة التجاوز في الفترة المسائية"]
+                
+                merged_rows.append(merged_row)
+            
+            # Create DataFrame from merged rows
+            if merged_rows:
+                merged_df = pd.DataFrame(merged_rows)
+                combined_df = pd.concat([single_period_df, merged_df], ignore_index=True)
+            else:
+                combined_df = single_period_df
+    
+    # Add "مخالف سابقا" column by checking Quarter 2
+    combined_df = _add_previous_violator_column(combined_df, quarter)
+    
+    # Save to cache
+    combined_df.to_parquet(cache_path, index=False)
+    return combined_df
+
+
+def _load_sheet_data(sheet, sheet_name: str) -> pd.DataFrame:
+    """Load data from a single Excel sheet."""
+    header = [
+        cell.value.strip() if isinstance(cell.value, str) else cell.value
+        for cell in sheet[1]
+    ]
+    loc_idx = header.index("الموقع") if "الموقع" in header else -1
+    
+    rows = []
+    for ridx, row in enumerate(sheet.iter_rows()):
+        if ridx == 0:
+            continue
+        values = []
+        for cidx, cell in enumerate(row):
+            value = cell.value
+            if cidx == loc_idx and isinstance(value, str) and value.startswith("=HYPERLINK"):
+                try:
+                    values.append(value.split('"')[1])
+                except Exception:
+                    values.append(None)
+            elif cidx == loc_idx and cell.hyperlink:
+                values.append(cell.hyperlink.target)
+            else:
+                values.append(value)
+        rows.append(values)
+    
+    if rows:
+        sheet_df = pd.DataFrame(rows, columns=header)
+        sheet_df["المحافظة_الورقة"] = sheet_name
+        return sheet_df
+    return pd.DataFrame()
+
+
+def _add_previous_violator_column(df: pd.DataFrame, current_quarter: str) -> pd.DataFrame:
+    """Add 'مخالف سابقا' column by checking if mosque was in Quarter 2."""
+    
+    # Only check for Quarter 3 (الربع الثالث 2025)
+    if "الربع الثالث" not in current_quarter or "رقم العداد" not in df.columns:
+        return df
+    
+    try:
+        # Load Quarter 2 data to check for previous violators
+        from config import QUARTER_FILES
+        quarter_2_name = "الربع الثاني 2025"
+        
+        if quarter_2_name in QUARTER_FILES:
+            quarter_2_path = Path(QUARTER_FILES[quarter_2_name])
+            quarter_2_cache = _quarter_cache_path(quarter_2_name, quarter_2_path)
+            
+            # Try to load Quarter 2 data
+            q2_df = None
+            if quarter_2_path.exists():
+                # Load from source if available
+                q2_wb = openpyxl.load_workbook(quarter_2_path, data_only=False)
+                q2_dfs = []
+                for sheet_name in q2_wb.sheetnames:
+                    if quarter_2_name == "الربع الرابع 2024" and sheet_name == "مدينة الرياض2":
+                        continue
+                    sheet = q2_wb[sheet_name]
+                    header = [
+                        cell.value.strip() if isinstance(cell.value, str) else cell.value
+                        for cell in sheet[1]
+                    ]
+                    if "رقم العداد" not in header:
+                        continue
+                    
+                    meter_idx = header.index("رقم العداد")
+                    meters = [row[meter_idx].value for row in sheet.iter_rows(min_row=2)]
+                    q2_dfs.extend([str(m) for m in meters if m is not None])
+                
+                if q2_dfs:
+                    q2_meters = set(q2_dfs)
+                else:
+                    q2_meters = set()
+            elif quarter_2_cache.exists():
+                # Load from cache if source not available
+                q2_df = pd.read_parquet(quarter_2_cache)
+                q2_meters = set(q2_df["رقم العداد"].astype(str).unique()) if "رقم العداد" in q2_df.columns else set()
+            else:
+                q2_meters = set()
+            
+            # Add the column based on whether meter was in Quarter 2
+            if q2_meters:
+                df["مخالف سابقا"] = df["رقم العداد"].astype(str).apply(
+                    lambda x: "نعم" if x in q2_meters else "لا"
+                )
+            else:
+                # If Quarter 2 data not available, mark as unknown
+                df["مخالف سابقا"] = pd.NA
+        else:
+            df["مخالف سابقا"] = pd.NA
+            
+    except Exception as e:
+        # If any error occurs, add column with NA values
+        import sys
+        print(f"Warning: Could not check Quarter 2 for previous violators: {e}", file=sys.stderr)
+        df["مخالف سابقا"] = pd.NA
+    
+    return df
+
 
 
 @st.cache_data

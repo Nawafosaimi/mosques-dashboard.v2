@@ -296,25 +296,38 @@ def render_province_details(
 
         if "المحافظة_الورقة" in display.columns:
             _control_label("اتجاة المحافظات")
-            sheet_options = ["الكل"] + sorted(
-                display["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
-            )
-            # Find current index
-            try:
-                sheet_idx = sheet_options.index(st.session_state.detail_sheet_filter)
-            except ValueError:
-                sheet_idx = 0
+            
+            # For Quarter 3, show "لا يوجد" instead of sheet filter
+            if selected_quarter == "الربع الثالث 2025":
+                st.selectbox(
+                    "اتجاة المحافظات",
+                    ["لا يوجد"],
+                    index=0,
+                    disabled=True,
+                    label_visibility="collapsed",
+                    key="_detail_sheet_filter_widget",
+                )
+                st.session_state.detail_sheet_filter = "الكل"
+            else:
+                sheet_options = ["الكل"] + sorted(
+                    display["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
+                )
+                # Find current index
+                try:
+                    sheet_idx = sheet_options.index(st.session_state.detail_sheet_filter)
+                except ValueError:
+                    sheet_idx = 0
 
-            selected_sheet = st.selectbox(
-                "اتجاة المحافظات",
-                sheet_options,
-                index=sheet_idx,
-                label_visibility="collapsed",
-                key="_detail_sheet_filter_widget",
-            )
-            if selected_sheet != st.session_state.detail_sheet_filter:
-                st.session_state.detail_sheet_filter = selected_sheet
-                st.rerun()
+                selected_sheet = st.selectbox(
+                    "اتجاة المحافظات",
+                    sheet_options,
+                    index=sheet_idx,
+                    label_visibility="collapsed",
+                    key="_detail_sheet_filter_widget",
+                )
+                if selected_sheet != st.session_state.detail_sheet_filter:
+                    st.session_state.detail_sheet_filter = selected_sheet
+                    st.rerun()
 
     selected_governorate = ""
     selected_period = ""
@@ -333,12 +346,13 @@ def render_province_details(
                 key="detail_governorate",
             )
 
+
     with period_col:
         if period_col_name and period_col_name in display.columns:
             _control_label("الفترة")
-            period_options = [""] + sorted(
-                display[period_col_name].dropna().astype(str).unique().tolist()
-            )
+            # Get unique period values safely
+            period_series = display[period_col_name].dropna().astype(str)
+            period_options = [""] + sorted(list(set(period_series)))
             selected_period = st.selectbox(
                 "الفترة",
                 period_options,
@@ -346,6 +360,9 @@ def render_province_details(
                 label_visibility="collapsed",
                 key="detail_period",
             )
+        else:
+            selected_period = ""
+
 
     with rows_col:
         _control_label("عدد الصفوف")
@@ -482,17 +499,37 @@ def render_province_details(
     # Format table data with search highlighting
     slice_render_df = slice_df.copy()
     highlight_pattern = re.compile(re.escape(search_term), re.IGNORECASE) if search_term else None
+    
+    # Identify violation percentage columns
+    violation_pct_columns = [
+        col for col in slice_render_df.columns 
+        if "نسبة التجاوز" in col
+    ]
 
-    def _format_value(value: object) -> str:
+    def _format_value(value: object, column_name: str = "") -> str:
+        # Handle NaN values (both actual NaN and string 'nan')
         if value is None or (isinstance(value, float) and math.isnan(value)):
             return ""
-        text = str(value)
+        if isinstance(value, str) and value.lower() in ['nan', 'none', 'null', '<na>']:
+            return ""
+        
+        # Format violation percentages as percentages
+        if column_name in violation_pct_columns:
+            try:
+                # Convert to float and multiply by 100 for percentage
+                pct_value = float(value) * 100
+                text = f"{pct_value:.0f}%"
+            except (ValueError, TypeError):
+                text = str(value)
+        else:
+            text = str(value)
+        
         if highlight_pattern:
             return highlight_pattern.sub(lambda m: f"<mark style='background:#ffe9b5;padding:2px 4px;border-radius:3px;'>{m.group(0)}</mark>", text)
         return text
 
     for column in slice_render_df.columns:
-        slice_render_df[column] = slice_render_df[column].apply(_format_value)
+        slice_render_df[column] = slice_render_df[column].apply(lambda x: _format_value(x, column))
 
     # Add clickable links
     q_enc, prov_enc = quote_plus(selected_quarter), quote_plus(province_param)
@@ -520,11 +557,94 @@ def render_province_details(
     for _, row in display_df.iterrows():
         cells = "".join(f"<td>{val}</td>" for val in row)
         rows_html += f"<tr>{cells}</tr>"
-    html_table = f'<table class="nice-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
+    
+    html_table = f'<table class="nice-table" id="province-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
     st.markdown(f'<div class="tbl-card"><div class="tbl-scroll">{html_table}</div></div>', unsafe_allow_html=True)
-
-    # Add spacing before pagination
-    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+    
+    # Add resizable columns functionality using components.html
+    import streamlit.components.v1 as components
+    
+    resize_html = """
+    <script>
+    (function() {
+        // Wait for table to be available
+        setTimeout(function() {
+            const table = parent.document.querySelector('#province-table');
+            if (!table) {
+                console.log('Table not found');
+                return;
+            }
+            
+            const headers = table.querySelectorAll('th');
+            let isResizing = false;
+            let currentHeader = null;
+            let startX = 0;
+            let startWidth = 0;
+            
+            headers.forEach((header, index) => {
+                // Skip last column
+                if (index === headers.length - 1) return;
+                
+                // Create resize handle
+                const resizeHandle = parent.document.createElement('div');
+                resizeHandle.style.cssText = `
+                    position: absolute;
+                    right: 0;
+                    top: 0;
+                    width: 8px;
+                    height: 100%;
+                    cursor: col-resize;
+                    user-select: none;
+                    z-index: 10;
+                `;
+                
+                // Add hover effect
+                resizeHandle.addEventListener('mouseenter', () => {
+                    resizeHandle.style.background = 'rgba(0,0,0,0.1)';
+                });
+                resizeHandle.addEventListener('mouseleave', () => {
+                    if (!isResizing) resizeHandle.style.background = '';
+                });
+                
+                header.style.position = 'relative';
+                header.appendChild(resizeHandle);
+                
+                resizeHandle.addEventListener('mousedown', (e) => {
+                    isResizing = true;
+                    currentHeader = header;
+                    startX = e.pageX;
+                    startWidth = header.offsetWidth;
+                    e.preventDefault();
+                    parent.document.body.style.cursor = 'col-resize';
+                    parent.document.body.style.userSelect = 'none';
+                });
+            });
+            
+            parent.document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const width = startWidth + (e.pageX - startX);
+                if (width > 50) {
+                    currentHeader.style.width = width + 'px';
+                    currentHeader.style.minWidth = width + 'px';
+                }
+            });
+            
+            parent.document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    currentHeader = null;
+                    parent.document.body.style.cursor = '';
+                    parent.document.body.style.userSelect = '';
+                }
+            });
+            
+            console.log('Resizable columns initialized');
+        }, 100);
+    })();
+    </script>
+    """
+    
+    components.html(resize_html, height=0)
 
     # Navigation buttons below table - centered layout with indicator
     current_page = st.session_state.detail_page_idx
