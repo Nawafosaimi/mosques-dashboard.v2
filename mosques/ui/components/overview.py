@@ -11,6 +11,7 @@ import config
 from ui.utils import render_plotly_chart
 from .quarter_upload import render_quarter_upload
 from .kpi_card import render_kpi_card
+from .header import render_header
 
 
 @st.dialog("إضافة ربع جديد")
@@ -80,6 +81,9 @@ def render_overview(
         diff_text = f"{diff:+,}"
         pct_text = f"{pct:+.1f}%"
         return f"<div class='delta {direction}'>{diff_text} ({pct_text}) مقارنة بـ {previous_label}</div>"
+
+    # Render header with ministry logo
+    render_header()
 
     # Title at the top
     st.markdown("<h1 style='text-align: center;'>لوحة متابعة المساجد</h1>", unsafe_allow_html=True)
@@ -238,7 +242,7 @@ def render_overview(
 
             fig_prov_bar.update_layout(
                 height=467,
-                margin=dict(t=0, b=20, l=220, r=0),
+                margin=dict(t=0, b=20, l=120, r=0),
                 showlegend=False,
                 xaxis_title="<b>عدد المساجد</b>",
                 yaxis_title="",
@@ -292,7 +296,7 @@ def render_overview(
     )
     fig_line.update_layout(
         height=450,
-        margin=dict(t=40, b=40, l=218, r=40),
+        margin=dict(t=40, b=40, l=40, r=40),
         showlegend=False,
         xaxis_title="<b>الربع</b>",
         yaxis_title="<b>عدد المساجد المتجاوزة</b>",

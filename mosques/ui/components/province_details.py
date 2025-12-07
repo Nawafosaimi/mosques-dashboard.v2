@@ -12,6 +12,7 @@ import config
 from domain import localize_booleans
 from .quarter_upload import render_quarter_upload
 from .kpi_card import render_kpi_card
+from .header import render_header
 
 
 @st.dialog("إضافة ربع جديد")
@@ -30,6 +31,9 @@ def render_province_details(
         return False
 
     ar_province = regions.loc[regions["province_en"] == province_param, "name_ar"].iloc[0]
+
+    # Render header with ministry logo
+    render_header()
 
     # Title at the top
     st.markdown(f"<h1 style='text-align: center;'>تفاصيل {ar_province}</h1>", unsafe_allow_html=True)

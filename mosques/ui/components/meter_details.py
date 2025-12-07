@@ -13,6 +13,30 @@ import config
 from data import find_coord_cols
 from domain import safe_str
 from ui.utils import render_plotly_chart
+from .header import render_header
+
+
+def _find_consumption_column(columns: list[str]) -> str | None:
+    """Return the first column that looks like a consumption field."""
+    preferred = [
+        "الاستهلاك",
+        "كمية الاستهلاك",
+        "كمية الإستهلاك",
+        "الاستهلاك الكلي",
+        "استهلاك",
+        "consumption",
+        "total_consumption",
+        "kwh",
+    ]
+    for col in columns:
+        if not isinstance(col, str):
+            continue
+        col_lower = col.lower()
+        if any(key in col_lower for key in preferred):
+            return col
+        if any(ar in col for ar in ["الاستهلاك", "استهلاك"]):
+            return col
+    return None
 
 
 def render_meter_details(
@@ -45,6 +69,9 @@ def render_meter_details(
             if isinstance(link_val, str) and link_val.strip():
                 location_link = link_val.strip()
                 break
+
+    # Render header with ministry logo
+    render_header()
 
     # Subtitle with meter details
     display_title = mosque_name if mosque_name else f"العداد: {meter_id_str}"
@@ -163,7 +190,7 @@ def render_meter_details(
             # Add marker with mosque icon (same as province map)
             folium.Marker(
                 [lat, lon],
-                icon=folium.Icon(icon="mosque", prefix="fa", color="green")
+                icon=folium.Icon(icon="mosque", prefix="fa", color="red")
             ).add_to(m)
             
             # Display the map
@@ -186,11 +213,13 @@ def render_meter_details(
                         font-size: 15px;
                         font-weight: 400;
                         transition: all 0.2s ease;
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
                     }}
                     .btn-google-maps:hover {{
                         background-color: #eaddc5 !important;
                         border-color: #d4c8b0 !important;
                         color: #1a2f29 !important;
+                        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
                     }}
                     </style>
                     <div style="text-align:center; margin-top:16px;">
@@ -214,9 +243,11 @@ def render_meter_details(
             if not df_q[df_q["رقم العداد"].astype(str) == meter_id_str].empty:
                 viol = "نعم"
 
-        bill_value = "N/A"
+        bill_value = ""
 
         bill_numeric = 0.0
+        consumption_value = ""
+        consumption_numeric = 0.0
         if not df_q.empty and "رقم العداد" in df_q.columns:
             row = df_q[df_q["رقم العداد"].astype(str) == meter_id_str]
             if not row.empty:
@@ -229,18 +260,29 @@ def render_meter_details(
                     except (ValueError, TypeError):
                         bill_value = str(val)
 
+                consumption_col = _find_consumption_column(list(df_q.columns))
+                if consumption_col and consumption_col in row.columns:
+                    cons_val = row.iloc[0][consumption_col]
+                    consumption_value = safe_str(cons_val)
+                    try:
+                        consumption_numeric = float(cons_val)
+                    except (ValueError, TypeError):
+                        consumption_numeric = 0.0
+
         merged_rows.append(
             {
                 "الربع": quarter,
                 "قيمة الفاتورة الإجمالي": bill_value,
+                "مجموع الاستهلاك (ميجاوات ساعة)": consumption_value,
                 "مُتجاوز؟": viol,
                 "bill_numeric": bill_numeric,
+                "consumption_numeric": consumption_numeric,
             }
         )
 
     merged_df = pd.DataFrame(merged_rows)
     # Drop the numeric column used for charting so it doesn't show in the table
-    display_df = merged_df.drop(columns=["bill_numeric"], errors="ignore")
+    display_df = merged_df.drop(columns=["bill_numeric", "consumption_numeric"], errors="ignore")
     # Build table HTML with proper thead/tbody for sticky headers
     header_html = "".join(f"<th>{col}</th>" for col in display_df.columns)
     rows_html = ""
@@ -250,7 +292,7 @@ def render_meter_details(
     table_html = f'<table class="nice-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
     st.markdown(f"<div class='table-wrapper'>{table_html}</div>", unsafe_allow_html=True)
 
-    st.markdown("### الفواتير لكل ربع")
+    st.markdown("### إجمالي  الفواتير لكل ربع")
     if not merged_df.empty:
         fig_line = px.line(
             merged_df,

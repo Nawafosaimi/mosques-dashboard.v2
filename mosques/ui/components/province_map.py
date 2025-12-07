@@ -10,6 +10,90 @@ import json
 import config
 from data import find_coord_cols
 from domain import simplify_geom
+from .header import render_header
+
+
+def _find_consumption_column(columns: list[str]) -> str | None:
+    """Return the first column that looks like a consumption field."""
+    preferred = [
+        "الاستهلاك",
+        "كمية الاستهلاك",
+        "كمية الإستهلاك",
+        "الاستهلاك الكلي",
+        "استهلاك",
+        "consumption",
+        "total_consumption",
+        "kwh",
+    ]
+    for col in columns:
+        if not isinstance(col, str):
+            continue
+        col_lower = col.lower()
+        if any(key in col_lower for key in preferred):
+            return col
+        if any(ar in col for ar in ["الاستهلاك", "استهلاك"]):
+            return col
+    return None
+
+
+@st.cache_data
+def _get_province_geometry(_regions, province_param: str):
+    """Cache province geometry and centroid calculation."""
+    try:
+        province_geom = _regions[_regions["province_en"] == province_param].iloc[0].geometry
+        province_geom_s = simplify_geom(province_geom, tolerance=0.02)
+        return {
+            "geometry": province_geom_s,
+            "center_lat": province_geom_s.centroid.y,
+            "center_lon": province_geom_s.centroid.x,
+        }
+    except Exception:
+        return None
+
+
+@st.cache_data
+def _prepare_violator_data(
+    _all_violator_data: dict,
+    quarter: str,
+    province_param: str,
+    _metadata: pd.DataFrame,
+):
+    """Cache the expensive data filtering and preparation."""
+    # Get quarter data
+    if quarter == "كل الأرباع":
+        table_q = pd.concat(_all_violator_data.values(), ignore_index=True)
+    else:
+        table_q = _all_violator_data.get(quarter, pd.DataFrame()).copy()
+    
+    if table_q.empty or "رقم العداد" not in table_q.columns:
+        return None
+    
+    # Filter by province
+    allowed_meters = set(
+        _metadata[_metadata["Province"] == province_param]["METER_ID_STR"].astype(str).unique()
+    ) if "Province" in _metadata.columns else set()
+    
+    temp = table_q.copy()
+    temp["رقم العداد"] = temp["رقم العداد"].astype(str)
+    violator_meters = temp[temp["رقم العداد"].isin(allowed_meters)]["رقم العداد"].unique()
+    
+    # Get consumption data
+    consumption_col = _find_consumption_column(list(table_q.columns))
+    consumption_map = {}
+    if consumption_col and consumption_col in temp.columns:
+        tmp_cons = temp[temp["رقم العداد"].isin(allowed_meters)].copy()
+        grouped_cons = (
+            tmp_cons.dropna(subset=[consumption_col])
+            .groupby("رقم العداد")[consumption_col]
+            .first()
+        )
+        consumption_map = {str(k): v for k, v in grouped_cons.items()}
+    
+    return {
+        "violator_meters": violator_meters,
+        "consumption_map": consumption_map,
+        "consumption_col": consumption_col,
+    }
 
 
 def render_province_map(
@@ -20,6 +104,9 @@ def render_province_map(
 ):
     if st.query_params.get("view", "") != "map" or not province_param:
         return False
+
+    # Render header with ministry logo
+    render_header()
 
     # --- Header & Controls ---
     col_back, col_title, col_filter = st.columns([0.6, 2.8, 0.6])
@@ -53,29 +140,19 @@ def render_province_map(
             label_visibility="collapsed",
             key="map_quarter",
         )
-        if sel_q_map != q_in_url:
-            st.query_params.update(quarter=sel_q_map, view="map", province=province_param)
-            st.rerun()
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
-    # --- Data Preparation ---
-    if sel_q_map == "كل الأرباع":
-        table_q_all_provinces = pd.concat(all_violator_data.values(), ignore_index=True)
-    else:
-        table_q_all_provinces = all_violator_data.get(sel_q_map, pd.DataFrame()).copy()
-
-    if table_q_all_provinces.empty or "رقم العداد" not in table_q_all_provinces.columns:
+    # --- Data Preparation (CACHED) ---
+    prepared_data = _prepare_violator_data(all_violator_data, sel_q_map, province_param, metadata)
+    
+    if not prepared_data:
         st.warning("لا توجد بيانات لعرض الخريطة.")
         st.stop()
-
-    allowed_meters = set(
-        metadata[metadata["Province"] == province_param]["METER_ID_STR"].astype(str).unique()
-    ) if "Province" in metadata.columns else set()
-
-    temp = table_q_all_provinces.copy()
-    temp["رقم العداد"] = temp["رقم العداد"].astype(str)
-    violator_meters = temp[temp["رقم العداد"].isin(allowed_meters)]["رقم العداد"].unique()
+    
+    violator_meters = prepared_data["violator_meters"]
+    consumption_map = prepared_data["consumption_map"]
+    consumption_col = prepared_data["consumption_col"]
 
     lon_col, lat_col = find_coord_cols(metadata)
     if not lon_col or not lat_col:
@@ -94,15 +171,15 @@ def render_province_map(
     mosque_df["METER_ID_STR"] = mosque_df["METER_ID_STR"].astype(str)
     mosque_df["Name"] = mosque_df["Name"].fillna("—")
 
-    # --- Map Center & Zoom ---
-    try:
-        province_geom = regions[regions["province_en"] == province_param].iloc[0].geometry
-        province_geom_s = simplify_geom(province_geom, tolerance=0.02)
-        # Calculate centroid for initial view
-        center_lat = province_geom_s.centroid.y
-        center_lon = province_geom_s.centroid.x
+    # --- Map Center & Zoom (CACHED) ---
+    geom_data = _get_province_geometry(regions, province_param)
+    
+    if geom_data:
+        center_lat = geom_data["center_lat"]
+        center_lon = geom_data["center_lon"]
+        province_geom_s = geom_data["geometry"]
         zoom_level = 6
-    except Exception:
+    else:
         center_lat = mosque_df[lat_col].mean()
         center_lon = mosque_df[lon_col].mean()
         zoom_level = 6
@@ -185,10 +262,11 @@ def render_province_map(
         name = row["Name"]
         lat = row[lat_col]
         lon = row[lon_col]
-        map_data.append([lat, lon, name, meter_id])
+        consumption_val = consumption_map.get(meter_id)
+        map_data.append([lat, lon, name, meter_id, consumption_val])
 
     # Define JS callback to create markers with popups
-    # 'row' corresponds to an item in map_data: [lat, lon, name, meter_id]
+    # 'row' corresponds to an item in map_data: [lat, lon, name, meter_id, consumption]
     # We construct the HTML entirely on the client side
     callback = f"""
     function (row) {{
@@ -196,6 +274,8 @@ def render_province_map(
         var lon = row[1];
         var name = row[2];
         var meter_id = row[3];
+        var consumption_val = row[4];
+        var consumption_display = (consumption_val === null || consumption_val === undefined || consumption_val === "") ? "" : consumption_val;
         
         // Use root-relative path '/' to ensure we link to the main app, not the iframe's path
         var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}";
@@ -210,7 +290,7 @@ def render_province_map(
                 padding: 12px;
                 background-color: #faf8f3;
                 border-radius: 12px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
             ">
                 <h4 style="
                     margin: 0 0 10px 0; 
@@ -224,6 +304,10 @@ def render_province_map(
                 <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: #8a7a63; font-size: 13px;">رقم العداد:</span>
                     <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{meter_id}}</span>
+                </div>
+                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #8a7a63; font-size: 13px;">مجموع الاستهلاك (ميجاوات ساعة):</span>
+                    <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{consumption_display}}</span>
                 </div>
                 
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -242,6 +326,7 @@ def render_province_map(
                         display: flex;
                         align-items: center;
                         justify-content: center;
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
                     "
                     onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
                     onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
@@ -263,6 +348,7 @@ def render_province_map(
                         display: flex;
                         align-items: center;
                         justify-content: center;
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
                     "
                     onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
                     onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"

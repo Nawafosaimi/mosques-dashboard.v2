@@ -198,11 +198,41 @@ header[data-testid="stHeader"] {
   min-width: 0;
 }
 
-/* Hide the Streamlit toolbar/shortcuts that might overlap with RTL elements */
-div[data-testid="stToolbar"],
-div[data-testid="stDecoration"] {
+/* Hide Streamlit three dots menu and Deploy button */
+button[data-testid="baseButton-headerNoPadding"],
+div[data-testid="stMainMenu"],
+div[data-testid="stDecoration"],
+div[data-testid="stToolbarActions"],
+button[data-testid="stBaseButton-header"],
+[data-testid="stHeader"] button,
+#MainMenu {
   display: none !important;
   visibility: hidden !important;
+}
+
+/* Center the logo in the header */
+/* Center the logo in the header - Force fixed position with physical coordinates */
+div[data-testid="stLogo"] {
+  position: fixed !important;
+  top: 10px !important;
+  left: 50% !important;
+  /* Physical left center */
+  right: auto !important;
+  /* Reset right */
+  transform: translateX(-50%) !important;
+  /* Move back by 50% of width */
+  z-index: 99999 !important;
+  width: auto !important;
+  display: block !important;
+  pointer-events: none;
+}
+
+div[data-testid="stLogo"] img {
+  max-height: 90px !important;
+  /* Increased size */
+  width: auto !important;
+  display: block !important;
+  margin: 0 auto !important;
 }
 
 /* Hide Streamlit spinner/loading indicator */
@@ -1036,20 +1066,26 @@ div[data-testid="stPlotlyChart"],
 .stButton>button,
 button[kind="primary"],
 button[kind="secondary"] {
-  background-color: #faf4e4 !important;
-  color: #000000 !important;
-  border: 2px solid #e1d9c6 !important;
-  border-radius: 12px !important;
-  font-weight: 600 !important;
+  background-color: #f4efe2 !important;
+  color: #1a2f29 !important;
+  border: 1px solid #e1d9c6 !important;
+  border-radius: 8px !important;
+  padding: 6px 24px !important;
+  font-family: 'Tajawal', sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
   transition: all 0.2s ease !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
 }
 
 .stButton>button:hover,
 button[kind="primary"]:hover,
 button[kind="secondary"]:hover {
-  background-color: #f0ebe0 !important;
-  border-color: #e1d9c6 !important;
-  transition: background-color 0.15s ease !important;
+  background-color: #eaddc5 !important;
+  border-color: #d4c8b0 !important;
+  color: #1a2f29 !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 
 /* Text Input Styling */
@@ -1139,4 +1175,469 @@ div[data-testid='stAlert'] svg,
 div[data-testid='stException'] svg {
   fill: #1a2f29 !important;
   color: #1a2f29 !important;
+}
+
+/* ===== Ministry Header Styles ===== */
+.ministry-header {
+  width: 100%;
+  padding: 16px 0;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 2px solid #e1d9c6;
+  background: linear-gradient(135deg, #faf8f3 0%, #f4efe2 100%);
+}
+
+.ministry-logo-link {
+  text-decoration: none !important;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.ministry-logo-link:hover {
+  transform: scale(1.02);
+  opacity: 0.9;
+}
+
+.ministry-logo-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #fdfcf8 100%);
+  border-radius: 16px;
+  border: 1px solid #e1d9c6;
+  box-shadow: 0 4px 16px rgba(11, 148, 68, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.ministry-logo-link:hover .ministry-logo-container {
+  box-shadow: 0 6px 24px rgba(11, 148, 68, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+  border-color: #0B9444;
+}
+
+.ministry-logo-icon {
+  font-size: 42px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.ministry-logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.ministry-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0B9444;
+  font-family: 'Tajawal', sans-serif;
+  letter-spacing: -0.3px;
+}
+
+.ministry-subtitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: #456E58;
+  font-family: 'Tajawal', sans-serif;
+}
+
+/* Responsive header adjustments */
+@media (max-width: 768px) {
+  .ministry-logo-container {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 20px;
+  }
+
+  .ministry-logo-icon {
+    font-size: 36px;
+  }
+
+  .ministry-name {
+    font-size: 18px;
+  }
+
+  .ministry-subtitle {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ministry-header {
+    padding: 12px 0;
+    margin-bottom: 8px;
+  }
+
+  .ministry-logo-container {
+    padding: 10px 16px;
+  }
+
+  .ministry-logo-icon {
+    font-size: 30px;
+  }
+
+  .ministry-name {
+    font-size: 16px;
+  }
+
+  .ministry-subtitle {
+    font-size: 11px;
+  }
+}
+
+/* --- Ministry Logo Overlay Styles --- */
+/* Hide Streamlit toolbar actions (Deploy, etc) */
+[data-testid="stToolbar"],
+[data-testid="stToolbarActions"],
+[data-testid="stHeader"] button {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+header[data-testid="stHeader"] {
+  z-index: 1 !important;
+}
+
+.ministry-logo-overlay {
+  position: fixed !important;
+  top: 3px !important;
+  /* User preference */
+  right: 75% !important;
+  /* User preference */
+  transform: translateX(-50%) !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  pointer-events: auto !important;
+  /* Enable clicks */
+  cursor: pointer !important;
+}
+
+.ministry-logo-overlay img {
+  height: 55px !important;
+  /* User preference */
+  width: auto !important;
+  object-fit: contain !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)) !important;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN - IPAD/LARGE TABLET (max-width: 1024px)
+   ============================================ */
+@media (max-width: 1024px) {
+
+  /* Reduce padding for iPad */
+  div[data-testid="block-container"] {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Scale down titles */
+  h1 {
+    font-size: 24px !important;
+  }
+
+  h2,
+  h3 {
+    font-size: 16px !important;
+  }
+
+  h4 {
+    font-size: 14px !important;
+    margin: 8px 0 !important;
+  }
+
+  /* Filter label smaller */
+  .filter-label {
+    font-size: 16px !important;
+  }
+
+  /* Control labels compact */
+  .control-label {
+    font-size: 10px !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* KPI adjustments - more compact */
+  .kpi-card {
+    padding: 8px !important;
+  }
+
+  .kpi-value {
+    font-size: 24px !important;
+  }
+
+  .kpi-title {
+    font-size: 11px !important;
+  }
+
+  /* Map height */
+  .streamlit-folium iframe {
+    height: 350px !important;
+  }
+
+  /* Header logo */
+  .ministry-logo-link {
+    right: 55% !important;
+    width: 200px !important;
+    height: 55px !important;
+  }
+
+  /* Keep horizontal layout but reduce gaps */
+  div[data-testid="stHorizontalBlock"] {
+    gap: 6px !important;
+  }
+
+  /* Compress all columns */
+  div[data-testid="stHorizontalBlock"]>div[data-testid="column"] {
+    padding: 0 2px !important;
+  }
+
+  /* Make selectboxes and inputs more compact */
+  div[data-testid="stSelectbox"]>div>div {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+    min-height: 32px !important;
+  }
+
+  div[data-testid="stTextInput"] input {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+
+  /* Make tables horizontally scrollable */
+  div[data-testid="stDataFrame"],
+  div[data-testid="stTable"],
+  .stDataFrame {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Charts ensure full width */
+  .js-plotly-plot {
+    width: 100% !important;
+  }
+
+  /* Compact buttons */
+  button,
+  .stButton>button {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+
+  /* Download/Export button - ensure minimum width */
+  div[data-testid="stDownloadButton"] button {
+    min-width: 70px !important;
+    white-space: nowrap !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* ============================================
+   RESPONSIVE DESIGN - TABLET (max-width: 768px)
+   ============================================ */
+@media (max-width: 768px) {
+
+  /* Force Streamlit columns to stack vertically */
+  div[data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  div[data-testid="stHorizontalBlock"]>div[data-testid="column"] {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Reduce main container padding */
+  div[data-testid="block-container"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Scale down main title */
+  h1 {
+    font-size: 24px !important;
+    line-height: 1.3 !important;
+  }
+
+  h2,
+  h3 {
+    font-size: 18px !important;
+  }
+
+  /* Filter label smaller */
+  .filter-label {
+    font-size: 18px !important;
+  }
+
+  /* KPI cards - stack and full width */
+  .kpi-card {
+    padding: 12px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .kpi-value {
+    font-size: 28px !important;
+  }
+
+  .kpi-title {
+    font-size: 14px !important;
+  }
+
+  /* Map height adjustment */
+  .streamlit-folium iframe {
+    height: 350px !important;
+  }
+
+  /* Charts - ensure they fit */
+  .js-plotly-plot {
+    width: 100% !important;
+  }
+
+  /* Header logo - center on tablet */
+  .ministry-logo-link {
+    right: auto !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 200px !important;
+    height: 55px !important;
+  }
+
+  .ministry-logo-overlay {
+    width: 55px !important;
+    height: 55px !important;
+  }
+
+  /* Back button smaller */
+  .back-btn {
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+  }
+
+  /* Sidebar adjustments */
+  section[data-testid="stSidebar"]>div {
+    padding: 16px 12px !important;
+  }
+}
+
+/* ============================================
+   RESPONSIVE DESIGN - MOBILE (max-width: 480px)
+   ============================================ */
+@media (max-width: 480px) {
+
+  /* Even smaller padding on mobile */
+  div[data-testid="block-container"] {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  /* Smaller titles */
+  h1 {
+    font-size: 20px !important;
+    margin-bottom: 8px !important;
+  }
+
+  h2,
+  h3 {
+    font-size: 16px !important;
+  }
+
+  /* Filter label even smaller */
+  .filter-label {
+    font-size: 14px !important;
+    margin-bottom: 6px !important;
+  }
+
+  /* KPI cards compact */
+  .kpi-card {
+    padding: 10px !important;
+    border-radius: 10px !important;
+  }
+
+  .kpi-value {
+    font-size: 24px !important;
+  }
+
+  .kpi-title {
+    font-size: 12px !important;
+  }
+
+  .kpi .delta {
+    font-size: 10px !important;
+  }
+
+  /* Smaller map on mobile */
+  .streamlit-folium iframe {
+    height: 280px !important;
+  }
+
+  /* Header logo - larger and centered */
+  .ministry-logo-link {
+    top: 5px !important;
+    width: 180px !important;
+    height: 50px !important;
+  }
+
+  .ministry-logo-overlay {
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  /* Selectbox/dropdowns full width */
+  div[data-testid="stSelectbox"] {
+    width: 100% !important;
+  }
+
+  div[data-testid="stSelectbox"]>div {
+    min-width: 100% !important;
+  }
+
+  /* Touch-friendly button sizing */
+  button,
+  .stButton>button {
+    min-height: 44px !important;
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+  }
+
+  .back-btn {
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    min-width: 100px !important;
+  }
+
+  /* Reduce gaps */
+  .stHorizontalBlock {
+    gap: 8px !important;
+  }
+
+  /* Scrollbar thinner on mobile */
+  *::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
+  }
+
+  /* Cards - less shadow, simpler */
+  .card {
+    border-radius: 12px !important;
+    padding: 10px !important;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.03) !important;
+  }
+
+  /* Dialog smaller on mobile */
+  div[data-testid="stDialog"]>div[role="dialog"] {
+    width: 95% !important;
+    max-width: none !important;
+    margin: 10px !important;
+    border-radius: 16px !important;
+  }
 }
