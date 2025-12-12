@@ -458,6 +458,12 @@ def _load_quarter_3_special(wb, quarter: str, cache_path: Path):
             else:
                 combined_df = single_period_df
     
+    # Clean up المحافظة column - remove parenthetical suffixes like "(مقر الامارة)"
+    if "المحافظة" in combined_df.columns:
+        combined_df["المحافظة"] = combined_df["المحافظة"].apply(
+            lambda x: x.split("(")[0].strip() if isinstance(x, str) and "(" in x else x
+        )
+    
     # Add "مخالف سابقا" column by checking Quarter 2
     combined_df = _add_previous_violator_column(combined_df, quarter)
     

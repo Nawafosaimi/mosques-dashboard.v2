@@ -203,6 +203,20 @@ def render_province_map(
             font-family: 'Tajawal', sans-serif !important;
         }
         
+        /* Customize marker cluster styling - Orange background with white text */
+        .marker-cluster-small,
+        .marker-cluster-medium,
+        .marker-cluster-large {
+            background-color: rgba(255, 140, 0, 0.6) !important;
+        }
+        
+        .marker-cluster-small div,
+        .marker-cluster-medium div,
+        .marker-cluster-large div {
+            background-color: #ff8c00 !important;
+            color: white !important;
+        }
+        
         /* Customize the popup wrapper to match theme */
         .custom-popup .leaflet-popup-content-wrapper {
             background: #faf8f3 !important;

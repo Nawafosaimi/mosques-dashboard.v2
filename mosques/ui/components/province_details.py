@@ -208,7 +208,7 @@ def render_province_details(
     ]
     existing_cols = display.columns.tolist()
     ordered_cols = [col for col in preferred_order if col in existing_cols]
-    remaining_cols = [col for col in existing_cols if col not in ordered_cols]
+    remaining_cols = [col for col in existing_cols if col not in ordered_cols and col != "المحافظة_الورقة"]
     final_order = ordered_cols + remaining_cols
     display = display[final_order]
 
@@ -294,11 +294,7 @@ def render_province_details(
     # Sheet filter
     selected_sheet = ""
     with sheet_col:
-        # Debug: Check if column exists
-        if "المحافظة_الورقة" not in display.columns:
-            st.warning(f"Available columns: {list(display.columns)}")
-
-        if "المحافظة_الورقة" in display.columns:
+        if "المحافظة_الورقة" in table_q.columns:
             _control_label("اتجاة المحافظات")
             
             # For Quarter 3, show "لا يوجد" instead of sheet filter
@@ -314,7 +310,7 @@ def render_province_details(
                 st.session_state.detail_sheet_filter = "الكل"
             else:
                 sheet_options = ["الكل"] + sorted(
-                    display["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
+                    table_q["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
                 )
                 # Find current index
                 try:
@@ -440,19 +436,6 @@ def render_province_details(
             on_change=_on_page_select,
         )
 
-    # Populate the export button with filtered data
-    with export_placeholder.container():
-        export_bytes = io.BytesIO()
-        df_filtered.to_csv(export_bytes, index=False, encoding="utf-8-sig")
-        export_bytes.seek(0)
-        st.download_button(
-            " تصدير",
-            data=export_bytes,
-            file_name=f"{ar_province}_{selected_quarter}_filtered.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="export_filtered_data",
-        )
 
     # Use session state values for sorting
     sort_column = st.session_state.detail_sort_column
@@ -493,6 +476,29 @@ def render_province_details(
             ).copy()
 
     df_filtered = df_filtered.reset_index(drop=True)
+
+    # Populate the export button with sorted and filtered data
+    with export_placeholder.container():
+        # Exclude internal tracking columns from export
+        export_df = df_filtered.drop(columns=["المحافظة_الورقة"], errors="ignore")
+        
+        # Format links as Excel hyperlinks if column exists
+        if "الموقع" in export_df.columns:
+            export_df["الموقع"] = export_df["الموقع"].apply(
+                lambda x: f'=HYPERLINK("{x}", "رابط الموقع")' if isinstance(x, str) and x.strip() else ""
+            )
+            
+        export_bytes = io.BytesIO()
+        export_df.to_csv(export_bytes, index=False, encoding="utf-8-sig")
+        export_bytes.seek(0)
+        st.download_button(
+            " تصدير",
+            data=export_bytes,
+            file_name=f"{ar_province}_{selected_quarter}_filtered.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="export_filtered_data",
+        )
 
     # Calculate start index for slicing
     start = st.session_state.detail_page_idx * rows_per_page

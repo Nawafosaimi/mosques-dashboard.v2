@@ -242,7 +242,7 @@ def render_overview(
 
             fig_prov_bar.update_layout(
                 height=467,
-                margin=dict(t=0, b=20, l=120, r=0),
+                margin=dict(t=0, b=20, l=200, r=0),
                 showlegend=False,
                 xaxis_title="<b>عدد المساجد</b>",
                 yaxis_title="",

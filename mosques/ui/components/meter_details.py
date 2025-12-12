@@ -244,6 +244,7 @@ def render_meter_details(
                 viol = "نعم"
 
         bill_value = ""
+        period_value = ""
 
         bill_numeric = 0.0
         consumption_value = ""
@@ -268,13 +269,19 @@ def render_meter_details(
                         consumption_numeric = float(cons_val)
                     except (ValueError, TypeError):
                         consumption_numeric = 0.0
+                
+                # Extract period data if available
+                if "الفترة صباحا/مساء" in row.columns:
+                    period_val = row.iloc[0]["الفترة صباحا/مساء"]
+                    period_value = safe_str(period_val) if pd.notna(period_val) else ""
 
         merged_rows.append(
             {
                 "الربع": quarter,
-                "قيمة الفاتورة الإجمالي": bill_value,
-                "مجموع الاستهلاك (ميجاوات ساعة)": consumption_value,
                 "مُتجاوز؟": viol,
+                "الفترة صباحا/مساء": period_value,
+                "مجموع الاستهلاك (ميجاوات ساعة)": consumption_value,
+                "قيمة الفاتورة الإجمالي": bill_value,
                 "bill_numeric": bill_numeric,
                 "consumption_numeric": consumption_numeric,
             }
