@@ -19,7 +19,6 @@ from ui.components import (
     render_overview,
     render_province_details,
     render_province_map,
-    render_quarter_upload,
 )
 
 

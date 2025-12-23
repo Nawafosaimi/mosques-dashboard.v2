@@ -127,6 +127,18 @@ def _load_dynamic_quarters() -> Tuple[Dict[str, Path], Dict[str, Tuple[datetime,
 
 # ===== Time ranges =====
 
+def _clean_quarters(q_list: list) -> list:
+    """Ensure quarters list is unique and cleaned."""
+    seen = set()
+    unique = []
+    for q in q_list:
+        if not q: continue
+        clean_q = str(q).strip()
+        if clean_q and clean_q not in seen:
+            unique.append(clean_q)
+            seen.add(clean_q)
+    return unique
+
 @st.cache_data
 def get_quarters() -> Tuple[Dict[str, Path], Dict[str, Tuple[datetime, datetime]], list]:
     """Get current quarters (static + dynamic).
@@ -136,11 +148,14 @@ def get_quarters() -> Tuple[Dict[str, Path], Dict[str, Tuple[datetime, datetime]
 
     IMPORTANT: This must be called on every app run to pick up newly uploaded quarters.
     """
-    return _load_dynamic_quarters()
+    q_files, q_dates, q_list = _load_dynamic_quarters()
+    # Apply cleaning to ensure unique quarters
+    return q_files, q_dates, _clean_quarters(q_list)
 
 
 # Default values (will be overridden in app.py on each run)
-QUARTER_FILES, QUARTER_DATES, QUARTERS = _load_dynamic_quarters()
+_q_files, _q_dates, _q_list = _load_dynamic_quarters()
+QUARTER_FILES, QUARTER_DATES, QUARTERS = _q_files, _q_dates, _clean_quarters(_q_list)
 
 # ===== Lookups =====
 

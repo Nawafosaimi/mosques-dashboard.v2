@@ -16,27 +16,7 @@ from ui.utils import render_plotly_chart
 from .header import render_header
 
 
-def _find_consumption_column(columns: list[str]) -> str | None:
-    """Return the first column that looks like a consumption field."""
-    preferred = [
-        "الاستهلاك",
-        "كمية الاستهلاك",
-        "كمية الإستهلاك",
-        "الاستهلاك الكلي",
-        "استهلاك",
-        "consumption",
-        "total_consumption",
-        "kwh",
-    ]
-    for col in columns:
-        if not isinstance(col, str):
-            continue
-        col_lower = col.lower()
-        if any(key in col_lower for key in preferred):
-            return col
-        if any(ar in col for ar in ["الاستهلاك", "استهلاك"]):
-            return col
-    return None
+
 
 
 def render_meter_details(
@@ -154,7 +134,7 @@ def render_meter_details(
                     f"<div class='meter-value'>{meter_id_str}</div>"
                     "<div class='meter-label'>المحافظة</div>"
                     f"<div class='meter-value'>{province_name}</div>"
-                    "<div class='meter-label'>إجمالي الفواتير</div>"
+                    "<div class='meter-label'>إجمالي الاستهلاك</div>"
                     f"<div class='meter-value highlight'>{int(total_bill):,} ريال</div>"
                     f"<div style='font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 12px;'>(من {first_q} إلى {last_q})</div>"
                     "</div>"
@@ -245,10 +225,10 @@ def render_meter_details(
 
         bill_value = ""
         period_value = ""
-
         bill_numeric = 0.0
-        consumption_value = ""
-        consumption_numeric = 0.0
+        morning_pct = ""
+        evening_pct = ""
+
         if not df_q.empty and "رقم العداد" in df_q.columns:
             row = df_q[df_q["رقم العداد"].astype(str) == meter_id_str]
             if not row.empty:
@@ -256,40 +236,49 @@ def render_meter_details(
                     val = row.iloc[0]["قيمة الفاتورة الإجمالي"]
                     try:
                         val_float = float(val)
-                        bill_value = f"{int(val_float)}"
+                        bill_value = f"{int(val_float):,} ريال"
                         bill_numeric = val_float
                     except (ValueError, TypeError):
-                        bill_value = str(val)
-
-                consumption_col = _find_consumption_column(list(df_q.columns))
-                if consumption_col and consumption_col in row.columns:
-                    cons_val = row.iloc[0][consumption_col]
-                    consumption_value = safe_str(cons_val)
-                    try:
-                        consumption_numeric = float(cons_val)
-                    except (ValueError, TypeError):
-                        consumption_numeric = 0.0
+                        bill_value = f"{val} ريال"
                 
                 # Extract period data if available
                 if "الفترة صباحا/مساء" in row.columns:
                     period_val = row.iloc[0]["الفترة صباحا/مساء"]
                     period_value = safe_str(period_val) if pd.notna(period_val) else ""
+                
+                # Extract violation percentages
+                col_morning = "نسبة التجاوز في الفترة الصباحية"
+                if col_morning in row.columns:
+                     val = row.iloc[0][col_morning]
+                     try:
+                         # Format as percentage if numeric (0.85 -> 85%)
+                         morning_pct = f"{float(val) * 100:.0f}%"
+                     except (ValueError, TypeError):
+                         morning_pct = str(val) if pd.notna(val) else ""
+
+                col_evening = "نسبة التجاوز في الفترة المسائية"
+                if col_evening in row.columns:
+                     val = row.iloc[0][col_evening]
+                     try:
+                         evening_pct = f"{float(val) * 100:.0f}%"
+                     except (ValueError, TypeError):
+                         evening_pct = str(val) if pd.notna(val) else ""
 
         merged_rows.append(
             {
                 "الربع": quarter,
                 "مُتجاوز؟": viol,
                 "الفترة صباحا/مساء": period_value,
-                "مجموع الاستهلاك (ميجاوات ساعة)": consumption_value,
-                "قيمة الفاتورة الإجمالي": bill_value,
+                "نسبة التجاوز في الفترة الصباحية": morning_pct,
+                "نسبة التجاوز في الفترة المسائية": evening_pct,
+                "قيمة الاستهلاك الإجمالي": bill_value,
                 "bill_numeric": bill_numeric,
-                "consumption_numeric": consumption_numeric,
             }
         )
 
     merged_df = pd.DataFrame(merged_rows)
     # Drop the numeric column used for charting so it doesn't show in the table
-    display_df = merged_df.drop(columns=["bill_numeric", "consumption_numeric"], errors="ignore")
+    display_df = merged_df.drop(columns=["bill_numeric"], errors="ignore")
     # Build table HTML with proper thead/tbody for sticky headers
     header_html = "".join(f"<th>{col}</th>" for col in display_df.columns)
     rows_html = ""
@@ -299,27 +288,51 @@ def render_meter_details(
     table_html = f'<table class="nice-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
     st.markdown(f"<div class='table-wrapper'>{table_html}</div>", unsafe_allow_html=True)
 
-    st.markdown("### إجمالي  الفواتير لكل ربع")
+    st.markdown("### إجمالي الاستهلاك لكل ربع")
     if not merged_df.empty:
+        # Sort chronologically by config.QUARTERS to ensure correct chart order
+        merged_rows_sorted = sorted(merged_rows, key=lambda x: config.QUARTERS.index(x["الربع"]))
+        chart_df = pd.DataFrame(merged_rows_sorted)
+
+        # Add formatted labels with date ranges logic (Arabic)
+        def _format_quarter_label(q_name):
+            if q_name in config.QUARTER_DATES:
+                start, end = config.QUARTER_DATES[q_name]
+                
+                arabic_months = {
+                    1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل", 5: "مايو", 6: "يونيو",
+                    7: "يوليو", 8: "أغسطس", 9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
+                }
+                
+                start_str = arabic_months.get(start.month, start.strftime('%b'))
+                end_str = arabic_months.get(end.month, end.strftime('%b'))
+                
+                # Format: 'Q3 2024<br>(من يناير إلى مارس)'
+                return f"{q_name}<br><span style='font-size:11px'>(من {start_str} إلى {end_str})</span>"
+            return q_name
+
+        chart_df["x_label"] = chart_df["الربع"].apply(_format_quarter_label)
+        
         fig_line = px.line(
-            merged_df,
-            x="الربع",
+            chart_df,
+            x="x_label",
             y="bill_numeric",
             title="",
             text="bill_numeric",
             markers=True,
         )
         fig_line.update_traces(
-            texttemplate="%{text:.2s}",
+            texttemplate="%{text:,}",
             textposition="top center",
             line_color="#456E58",
             marker=dict(size=10, color="#456E58"),
+            cliponaxis=False
         )
         fig_line.update_layout(
-            margin=dict(t=20, b=20, l=80, r=20),
+            margin=dict(t=40, b=20, l=80, r=60),
             height=380,
             xaxis_title="<b>الربع</b>",
-            yaxis_title="<b>قيمة الفاتورة</b>",
+            yaxis_title="<b>قيمة الاستهلاك</b>",
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
             font=dict(family="Tajawal, sans-serif", size=14, color="#1a2f29"),
@@ -329,7 +342,19 @@ def render_meter_details(
             gridcolor="#e0e0e0",
             title_standoff=49
         )
-        render_plotly_chart(fig_line, width_mode="stretch")
+        render_plotly_chart(
+            fig_line,
+            width_mode="stretch",
+            config={"displayModeBar": False, "scrollZoom": False},
+        )
+        
+        # Consistent explanation text below the chart
+        st.markdown(
+            "<p style='text-align: center; color: #666; font-size: 13px; margin-top: -10px; font-family: Tajawal, sans-serif;'>"
+            "* إذا كانت القيمة 0، فهذا يعني أنه لم يتم رصد أي تجاوزات في ذلك الربع."
+            "</p>",
+            unsafe_allow_html=True
+        )
 
     st.stop()
 

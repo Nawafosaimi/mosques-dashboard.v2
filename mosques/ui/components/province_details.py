@@ -10,14 +10,12 @@ import streamlit as st
 
 import config
 from domain import localize_booleans
-from .quarter_upload import render_quarter_upload
+
 from .kpi_card import render_kpi_card
 from .header import render_header
 
 
-@st.dialog("إضافة ربع جديد")
-def upload_dialog():
-    render_quarter_upload()
+
 
 
 def render_province_details(
@@ -51,8 +49,17 @@ def render_province_details(
 
     # Setup quarters and selection
     all_quarters_label = "كل الأرباع"
-    add_quarter_label = "إضافة ربع جديد"
-    quarter_options = [all_quarters_label] + config.QUARTERS + [add_quarter_label]
+    
+    # Robust deduplication: ensure all labels are unique and stripped
+    all_options = [all_quarters_label] + config.QUARTERS
+    quarter_options = []
+    seen = set()
+    for opt in all_options:
+        if not opt: continue
+        clean_opt = str(opt).strip()
+        if clean_opt and clean_opt not in seen:
+            quarter_options.append(clean_opt)
+            seen.add(clean_opt)
     
     # Determine index for selectbox
     if quarter_param in config.QUARTERS:
@@ -62,6 +69,14 @@ def render_province_details(
     else:
         q_idx = 0
 
+    # Date legend helper
+    def _get_quarter_legend(q_name):
+        if q_name in config.QUARTER_DATES:
+            start, end = config.QUARTER_DATES[q_name]
+            # Format: 1 Jan - 31 Mar
+            return f"{start.strftime('%d %b')} - {end.strftime('%d %b')}"
+        return ""
+
     # Row with KPIs on left and Filter on right
     # Using more flexible proportions to allow dynamic KPI width
     _, kpi_col, _, filter_col = st.columns([0.08, 1.8, 0.15, 2.2], gap="medium")
@@ -69,7 +84,7 @@ def render_province_details(
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
-            st.markdown("<p class='filter-label'>اختر او اضف ربع جديد</p>", unsafe_allow_html=True)
+            st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
             selected_quarter = st.selectbox(
                 "الربع",
                 quarter_options,
@@ -78,14 +93,14 @@ def render_province_details(
                 label_visibility="hidden",
             )
             
-            if selected_quarter == add_quarter_label:
-                upload_dialog()
-                # Revert to current quarter for background rendering
-                selected_quarter = quarter_param if quarter_param in quarter_options else all_quarters_label
+
 
     # Get data for selected quarter
     if selected_quarter == all_quarters_label:
         table_q_all_provinces = pd.concat(all_violator_data.values(), ignore_index=True)
+        # Deduplicate by meter ID to count unique mosques
+        if "رقم العداد" in table_q_all_provinces.columns:
+            table_q_all_provinces = table_q_all_provinces.drop_duplicates(subset=["رقم العداد"], keep="first")
     else:
         table_q_all_provinces = all_violator_data.get(selected_quarter, pd.DataFrame()).copy()
 
@@ -139,15 +154,25 @@ def render_province_details(
             return "<div class='delta neutral'>لا توجد بيانات للمقارنة</div>"
         diff = current_count - previous_count
         if diff == 0:
-            return f"<div class='delta flat'>بدون تغيير مقارنة بـ {previous_label}</div>"
+            return f"<div class='delta flat'>بدون تغيير مقارنة بالربع السابق {previous_label}</div>"
         pct = (diff / previous_count) * 100
-        if prefer_lower:
-            direction = "up" if diff < 0 else "down"
+        if diff > 0:
+            direction = "up" if not prefer_lower else "down"
+            arrow = "↑"
+        elif diff < 0:
+            direction = "down" if not prefer_lower else "up"
+            arrow = "↓"
         else:
-            direction = "up" if diff > 0 else "down"
+            direction = "neutral"
+            arrow = ""
+
         diff_text = f"{diff:+,}"
         pct_text = f"{pct:+.1f}%"
-        return f"<div class='delta {direction}'>{diff_text} ({pct_text}) مقارنة بـ {previous_label}</div>"
+        
+        # Badge Style with Flexbox: Text [Right] | Badge [Left]
+        badge_html = f"<span class='delta-badge {direction}'>{pct_text} {arrow}</span>"
+        text_html = f"<span>{diff_text} مقارنة بالربع السابق </span>"
+        return f"<div class='delta {direction}'>{text_html}{badge_html}</div>"
 
     # Prepare delta HTML for violations
     if selected_quarter == all_quarters_label:
@@ -175,8 +200,12 @@ def render_province_details(
             )
 
         with k2:
+            kpi_title = "عدد المساجد المتجاوزة"
+            if selected_quarter != all_quarters_label:
+                kpi_title = f"عدد المساجد المتجاوزة في {selected_quarter}"
+            
             render_kpi_card(
-                title="عدد المساجد المتجاوزة",
+                title=kpi_title,
                 value=f"{violations_count:,}",
                 delta_html=violations_delta_html,
                 value_color_class="red"
@@ -196,20 +225,30 @@ def render_province_details(
     if "الفترة صباحا/مساء" in display.columns:
         display["الفترة صباحا/مساء"] = display["الفترة صباحا/مساء"].replace("مساءا", "مساء")
 
+    # Fix column name for Consumption
+    if "قيمة الفاتورة الإجمالي" in display.columns:
+        display = display.rename(columns={"قيمة الفاتورة الإجمالي": "قيمة الاستهلاك الإجمالي"})
+    elif "قيمة الفاتورة" in display.columns:
+        display = display.rename(columns={"قيمة الفاتورة": "قيمة الاستهلاك الإجمالي"})
+
     # Enforce consistent column order
     preferred_order = [
         "اسم المسجد",
         "رقم العداد",
         "المحافظة",
         "الفترة صباحا/مساء",
-        "قيمة الفاتورة الإجمالي",
+        "قيمة الاستهلاك الإجمالي",
         "مخالف سابقا",
         "الموقع",
     ]
     existing_cols = display.columns.tolist()
     ordered_cols = [col for col in preferred_order if col in existing_cols]
+    # Keep المحافظة_الورقة in the dataframe for filtering, but don't include in display order
     remaining_cols = [col for col in existing_cols if col not in ordered_cols and col != "المحافظة_الورقة"]
     final_order = ordered_cols + remaining_cols
+    # Add المحافظة_الورقة at the end if it exists (for filtering purposes)
+    if "المحافظة_الورقة" in existing_cols:
+        final_order = final_order + ["المحافظة_الورقة"]
     display = display[final_order]
 
     governorate_col_name = "المحافظة"
@@ -220,10 +259,10 @@ def render_province_details(
 
     # Initialize session state for sorting
     sortable_columns = [c for c in display.columns if c not in ["الموقع", "المحافظة_الورقة"]]
-    sort_options = [""] + sortable_columns
+    sort_options = sortable_columns
 
-    # Set default sort column to قيمة الفاتورة الإجمالي if it exists
-    default_sort_column = "قيمة الفاتورة الإجمالي" if "قيمة الفاتورة الإجمالي" in sortable_columns else ""
+    # Set default sort column to قيمة الاستهلاك الإجمالي if it exists
+    default_sort_column = "قيمة الاستهلاك الإجمالي" if "قيمة الاستهلاك الإجمالي" in sortable_columns else (sortable_columns[0] if sortable_columns else "")
 
     if "detail_sort_column" not in st.session_state:
         st.session_state.detail_sort_column = default_sort_column
@@ -254,7 +293,9 @@ def render_province_details(
     title_col, search_col, sort_col, order_col, sheet_col, gov_col, period_col, rows_col, page_col, export_col = st.columns([1.5, 1, 0.9, 0.8, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6])
 
     with title_col:
-        st.markdown("<h4 style='margin-top: 10px; margin-bottom: 0;'>قائمة المساجد المتجاوزة</h4>", unsafe_allow_html=True)
+        # We will update this later with the filtered count
+        title_placeholder = st.empty()
+        title_placeholder.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 0;'>قائمة المساجد المتجاوزة</h4>", unsafe_allow_html=True)
 
     with search_col:
         _control_label("البحث")
@@ -297,21 +338,12 @@ def render_province_details(
         if "المحافظة_الورقة" in table_q.columns:
             _control_label("اتجاة المحافظات")
             
-            # For Quarter 3, show "لا يوجد" instead of sheet filter
-            if selected_quarter == "الربع الثالث 2025":
-                st.selectbox(
-                    "اتجاة المحافظات",
-                    ["لا يوجد"],
-                    index=0,
-                    disabled=True,
-                    label_visibility="collapsed",
-                    key="_detail_sheet_filter_widget",
-                )
-                st.session_state.detail_sheet_filter = "الكل"
-            else:
-                sheet_options = ["الكل"] + sorted(
-                    table_q["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
-                )
+            # Get available sheet options
+            sheet_values = table_q["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
+            
+            # Only show dropdown if there are actual values to filter by
+            if len(sheet_values) > 0:
+                sheet_options = ["الكل"] + sorted(sheet_values)
                 # Find current index
                 try:
                     sheet_idx = sheet_options.index(st.session_state.detail_sheet_filter)
@@ -323,11 +355,23 @@ def render_province_details(
                     sheet_options,
                     index=sheet_idx,
                     label_visibility="collapsed",
-                    key="_detail_sheet_filter_widget",
+                    key="detail_sheet_filter",
                 )
-                if selected_sheet != st.session_state.detail_sheet_filter:
-                    st.session_state.detail_sheet_filter = selected_sheet
-                    st.rerun()
+                # Value is automatically updated in st.session_state.detail_sheet_filter due to key
+            else:
+                # No sheet data available - show disabled dropdown
+                st.selectbox(
+                    "اتجاة المحافظات",
+                    ["لا يوجد"],
+                    index=0,
+                    disabled=True,
+                    label_visibility="collapsed",
+                    key="detail_sheet_filter",
+                )
+                # Ensure state is consistent
+                if st.session_state.detail_sheet_filter != "الكل":
+                     st.session_state.detail_sheet_filter = "الكل"
+                     st.rerun()
 
     selected_governorate = ""
     selected_period = ""
@@ -335,13 +379,26 @@ def render_province_details(
     with gov_col:
         if governorate_col_name in display.columns:
             _control_label("المحافظة")
-            governorate_options = [""] + sorted(
-                display[governorate_col_name].dropna().astype(str).unique().tolist()
+            
+            # Dependent Filter Logic: Filter options based on selected sheet (Direction)
+            gov_source_df = display
+            if selected_sheet and selected_sheet != "الكل" and "المحافظة_الورقة" in display.columns:
+                gov_source_df = display[display["المحافظة_الورقة"].astype(str) == selected_sheet]
+                
+            governorate_options = ["الكل"] + sorted(
+                gov_source_df[governorate_col_name].dropna().astype(str).unique().tolist()
             )
+            
+            # Handle case where previously selected governorate is no longer valid
+            current_gov = st.session_state.get("detail_governorate", "الكل")
+            gov_index = 0
+            if current_gov in governorate_options:
+                gov_index = governorate_options.index(current_gov)
+            
             selected_governorate = st.selectbox(
                 "المحافظة",
                 governorate_options,
-                index=0,
+                index=gov_index,
                 label_visibility="collapsed",
                 key="detail_governorate",
             )
@@ -352,7 +409,7 @@ def render_province_details(
             _control_label("الفترة")
             # Get unique period values safely
             period_series = display[period_col_name].dropna().astype(str)
-            period_options = [""] + sorted(list(set(period_series)))
+            period_options = ["الكل"] + sorted(list(set(period_series)))
             selected_period = st.selectbox(
                 "الفترة",
                 period_options,
@@ -398,14 +455,24 @@ def render_province_details(
     if selected_sheet and selected_sheet != "الكل" and "المحافظة_الورقة" in df_filtered.columns:
         df_filtered = df_filtered[df_filtered["المحافظة_الورقة"].astype(str) == selected_sheet].copy()
 
-    if selected_governorate:
+    if selected_governorate and selected_governorate != "الكل":
         df_filtered = df_filtered[df_filtered[governorate_col_name].astype(str) == selected_governorate].copy()
 
-    if selected_period and period_col_name in df_filtered.columns:
+    if selected_period and selected_period != "الكل" and period_col_name in df_filtered.columns:
         df_filtered = df_filtered[df_filtered[period_col_name].astype(str) == selected_period].copy()
 
     # Calculate pagination based on filtered data
     total_rows = len(df_filtered)
+    
+    # Update title with filtered count
+    title_placeholder.markdown(
+        f"<h4 style='margin-top: 10px; margin-bottom: 0;'>قائمة المساجد المتجاوزة <span style='font-size: 0.8em; color: #2b5d4a;'>({total_rows})</span></h4>",
+        unsafe_allow_html=True
+    )
+    
+    total_pages = max(1, math.ceil(total_rows / rows_per_page))
+    
+    
     total_pages = max(1, math.ceil(total_rows / rows_per_page))
 
     # Reset to page 1 if quarter changed
@@ -531,6 +598,13 @@ def render_province_details(
                 text = f"{pct_value:.0f}%"
             except (ValueError, TypeError):
                 text = str(value)
+        elif column_name == "قيمة الاستهلاك الإجمالي":
+            try:
+                # Format with commas, no decimals
+                val_float = float(value)
+                text = f"{int(val_float):,} ريال"
+            except (ValueError, TypeError):
+                text = f"{value} ريال"
         else:
             text = str(value)
         
@@ -665,7 +739,7 @@ def render_province_details(
     _, next_col, ind_col, prev_col, _ = st.columns([5, 1.2, 1.5, 1.2, 5])
 
     with next_col:
-        if st.button("▶ التالي", disabled=next_disabled, use_container_width=True, key="detail_next_page"):
+        if st.button("التالي", disabled=next_disabled, use_container_width=True, key="detail_next_page"):
             if st.session_state.detail_page_idx < total_pages - 1:
                 st.session_state.detail_page_idx += 1
                 st.rerun()
@@ -679,7 +753,7 @@ def render_province_details(
         )
 
     with prev_col:
-        if st.button(" السابق ◀ ", disabled=prev_disabled, use_container_width=True, key="detail_prev_page"):
+        if st.button(" السابق", disabled=prev_disabled, use_container_width=True, key="detail_prev_page"):
             if st.session_state.detail_page_idx > 0:
                 st.session_state.detail_page_idx -= 1
                 st.rerun()

@@ -5,7 +5,6 @@ from .meter_details import render_meter_details
 from .province_details import render_province_details
 from .province_map import render_province_map
 from .overview import render_overview
-from .quarter_upload import render_quarter_upload
 
 __all__ = [
     "render_header",
@@ -13,7 +12,6 @@ __all__ = [
     "render_province_details",
     "render_province_map",
     "render_overview",
-    "render_quarter_upload",
 ]
 
 

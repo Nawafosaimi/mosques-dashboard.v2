@@ -9,20 +9,22 @@ from streamlit_folium import st_folium
 
 import config
 from ui.utils import render_plotly_chart
-from .quarter_upload import render_quarter_upload
+
 from .kpi_card import render_kpi_card
 from .header import render_header
 
 
-@st.dialog("إضافة ربع جديد")
-def upload_dialog():
-    render_quarter_upload()
+
 
 
 @st.cache_data
 def get_combined_violator_data(all_violator_data: dict) -> pd.DataFrame:
-    """Cache the concatenation of all quarter data."""
-    return pd.concat(all_violator_data.values(), ignore_index=True).dropna(how="all")
+    """Cache the concatenation of all quarter data, deduplicated by meter ID."""
+    combined = pd.concat(all_violator_data.values(), ignore_index=True).dropna(how="all")
+    # Deduplicate by meter ID to count unique mosques, not total violations across quarters
+    if "رقم العداد" in combined.columns:
+        combined = combined.drop_duplicates(subset=["رقم العداد"], keep="first")
+    return combined
 
 
 @st.cache_data
@@ -74,13 +76,24 @@ def render_overview(
         if diff == 0:
             return f"<div class='delta flat'>بدون تغيير مقارنة بـ {previous_label}</div>"
         pct = (diff / previous_count) * 100
-        if prefer_lower:
-            direction = "up" if diff < 0 else "down"
+        
+        if diff > 0:
+            direction = "up" if not prefer_lower else "down"
+            arrow = "↑"
+        elif diff < 0:
+            direction = "down" if not prefer_lower else "up"
+            arrow = "↓"
         else:
-            direction = "up" if diff > 0 else "down"
+            direction = "neutral"
+            arrow = ""
+            
         diff_text = f"{diff:+,}"
         pct_text = f"{pct:+.1f}%"
-        return f"<div class='delta {direction}'>{diff_text} ({pct_text}) مقارنة بـ {previous_label}</div>"
+        
+        # Badge Style with Flexbox: Text [Right] | Badge [Left]
+        badge_html = f"<span class='delta-badge {direction}'>{pct_text} {arrow}</span>"
+        text_html = f"<span>{diff_text} مقارنة بالربع السابق</span>"
+        return f"<div class='delta {direction}'>{text_html}{badge_html}</div>"
 
     # Render header with ministry logo
     render_header()
@@ -89,8 +102,25 @@ def render_overview(
     st.markdown("<h1 style='text-align: center;'>لوحة متابعة المساجد</h1>", unsafe_allow_html=True)
 
     all_quarters_label = "كل الأرباع"
-    add_quarter_label = "إضافة ربع جديد"
-    quarter_options = [all_quarters_label] + config.QUARTERS + [add_quarter_label]
+    
+    # Robust deduplication: ensure all labels are unique and stripped
+    all_options = [all_quarters_label] + config.QUARTERS
+    quarter_options = []
+    seen = set()
+    for opt in all_options:
+        if not opt: continue
+        clean_opt = str(opt).strip()
+        if clean_opt and clean_opt not in seen:
+            quarter_options.append(clean_opt)
+            seen.add(clean_opt)
+
+    # Date legend helper
+    def _get_quarter_legend(q_name):
+        if q_name in config.QUARTER_DATES:
+            start, end = config.QUARTER_DATES[q_name]
+            # Format: 1 Jan - 31 Mar
+            return f"{start.strftime('%d %b')} - {end.strftime('%d %b')}"
+        return ""
 
     # Row with KPIs on left and Filter on right
     # Using more flexible proportions to allow dynamic KPI width
@@ -100,7 +130,7 @@ def render_overview(
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
-            st.markdown("<p  class='filter-label'>اختر او اضف ربع جديد</p>", unsafe_allow_html=True)
+            st.markdown("<p  class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
             
             # Determine index
             if quarter_param in config.QUARTERS:
@@ -118,10 +148,7 @@ def render_overview(
                 label_visibility="hidden",
             )
 
-            if selected_quarter_overview == add_quarter_label:
-                upload_dialog()
-                # Revert to current quarter for background rendering
-                selected_quarter_overview = quarter_param if quarter_param in quarter_options else all_quarters_label
+
 
     if selected_quarter_overview == all_quarters_label:
         overview_df = get_combined_violator_data(all_violator_data)
@@ -161,8 +188,12 @@ def render_overview(
             )
         
         with kpi_right:
+            kpi_title = "عدد المساجد المتجاوزة في منطقة الرياض"
+            if selected_quarter_overview != all_quarters_label:
+                kpi_title = f"عدد المساجد المتجاوزة في {selected_quarter_overview}"
+                
             render_kpi_card(
-                title="عدد المساجد المتجاوزة في منطقة الرياض",
+                title=kpi_title,
                 value=f"{violations_count_overview:,}",
                 delta_html=violations_delta_html,
                 value_color_class="red"
@@ -271,18 +302,37 @@ def render_overview(
             st.info("ملف Industry Code لا يحتوي على عمود 'Province'.")
 
     st.markdown(" ###  المتجاوزين عبر الأرباع  في منطقة الرياض ")
+    
     quarter_labels = config.QUARTERS
     quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in config.QUARTERS]
 
     # line chart for number of violators per quarter
+    # Helper to format X-axis labels with date ranges (Arabic)
+    def _format_quarter_label(q_name):
+        if q_name in config.QUARTER_DATES:
+            start, end = config.QUARTER_DATES[q_name]
+            
+            arabic_months = {
+                1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل", 5: "مايو", 6: "يونيو",
+                7: "يوليو", 8: "أغسطس", 9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
+            }
+            
+            start_str = arabic_months.get(start.month, start.strftime('%b'))
+            end_str = arabic_months.get(end.month, end.strftime('%b'))
+            
+            return f"{q_name}<br><span style='font-size:11px'>(من {start_str} إلى {end_str})</span>"
+        return q_name
+
+    formatted_labels = [_format_quarter_label(q) for q in quarter_labels]
+
     chart_df = pd.DataFrame({
-        "الربع": quarter_labels,
+        "x_label": formatted_labels,
         "count": quarter_values
     })
-
+    
     fig_line = px.line(
         chart_df,
-        x="الربع",
+        x="x_label",
         y="count",
         title="",
         text="count",
@@ -345,8 +395,8 @@ def build_overview_map(regions_map):
     )
     folium.GeoJson(
         data=regions_map.__geo_interface__,
-        style_function=lambda _: {"fillColor": "#0B9444", "color": "#0B9444", "weight": 1, "fillOpacity": 0.3},
-        highlight_function=lambda _: {"weight": 3, "fillOpacity": 0.5},
+        style_function=lambda _: {"fillColor": "#0B9444", "color": "#0B9444", "weight": 1, "fillOpacity": 0.5},
+        highlight_function=lambda _: {"weight": 3, "fillOpacity": 0.7},
         tooltip=folium.GeoJsonTooltip(fields=["name_ar", "count_label"], aliases=["المنطقة", "عدد المتجاوزين"]),
     ).add_to(m)
     return m

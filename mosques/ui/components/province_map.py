@@ -13,27 +13,6 @@ from domain import simplify_geom
 from .header import render_header
 
 
-def _find_consumption_column(columns: list[str]) -> str | None:
-    """Return the first column that looks like a consumption field."""
-    preferred = [
-        "الاستهلاك",
-        "كمية الاستهلاك",
-        "كمية الإستهلاك",
-        "الاستهلاك الكلي",
-        "استهلاك",
-        "consumption",
-        "total_consumption",
-        "kwh",
-    ]
-    for col in columns:
-        if not isinstance(col, str):
-            continue
-        col_lower = col.lower()
-        if any(key in col_lower for key in preferred):
-            return col
-        if any(ar in col for ar in ["الاستهلاك", "استهلاك"]):
-            return col
-    return None
 
 
 @st.cache_data
@@ -77,22 +56,16 @@ def _prepare_violator_data(
     temp["رقم العداد"] = temp["رقم العداد"].astype(str)
     violator_meters = temp[temp["رقم العداد"].isin(allowed_meters)]["رقم العداد"].unique()
     
-    # Get consumption data
-    consumption_col = _find_consumption_column(list(table_q.columns))
-    consumption_map = {}
-    if consumption_col and consumption_col in temp.columns:
-        tmp_cons = temp[temp["رقم العداد"].isin(allowed_meters)].copy()
-        grouped_cons = (
-            tmp_cons.dropna(subset=[consumption_col])
-            .groupby("رقم العداد")[consumption_col]
-            .first()
-        )
-        consumption_map = {str(k): v for k, v in grouped_cons.items()}
+    # Get governorate mapping
+    governorate_map = {}
+    if "المحافظة" in temp.columns:
+        gov_data = temp[temp["رقم العداد"].isin(allowed_meters)].copy()
+        grouped_gov = gov_data.dropna(subset=["المحافظة"]).groupby("رقم العداد")["المحافظة"].first()
+        governorate_map = {str(k): str(v) for k, v in grouped_gov.items()}
     
     return {
         "violator_meters": violator_meters,
-        "consumption_map": consumption_map,
-        "consumption_col": consumption_col,
+        "governorate_map": governorate_map,
     }
 
 
@@ -151,8 +124,7 @@ def render_province_map(
         st.stop()
     
     violator_meters = prepared_data["violator_meters"]
-    consumption_map = prepared_data["consumption_map"]
-    consumption_col = prepared_data["consumption_col"]
+    governorate_map = prepared_data["governorate_map"]
 
     lon_col, lat_col = find_coord_cols(metadata)
     if not lon_col or not lat_col:
@@ -276,8 +248,8 @@ def render_province_map(
         name = row["Name"]
         lat = row[lat_col]
         lon = row[lon_col]
-        consumption_val = consumption_map.get(meter_id)
-        map_data.append([lat, lon, name, meter_id, consumption_val])
+        governorate = governorate_map.get(meter_id, "")
+        map_data.append([lat, lon, name, meter_id, governorate])
 
     # Define JS callback to create markers with popups
     # 'row' corresponds to an item in map_data: [lat, lon, name, meter_id, consumption]
@@ -288,8 +260,7 @@ def render_province_map(
         var lon = row[1];
         var name = row[2];
         var meter_id = row[3];
-        var consumption_val = row[4];
-        var consumption_display = (consumption_val === null || consumption_val === undefined || consumption_val === "") ? "" : consumption_val;
+        var governorate = row[4] || "";
         
         // Use root-relative path '/' to ensure we link to the main app, not the iframe's path
         var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}";
@@ -315,13 +286,13 @@ def render_province_map(
                     padding-bottom: 10px;
                 ">${{name}}</h4>
                 
-                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: #8a7a63; font-size: 13px;">رقم العداد:</span>
                     <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{meter_id}}</span>
                 </div>
-                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #8a7a63; font-size: 13px;">مجموع الاستهلاك (ميجاوات ساعة):</span>
-                    <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{consumption_display}}</span>
+                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #8a7a63; font-size: 13px;">المحافظة:</span>
+                    <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{governorate}}</span>
                 </div>
                 
                 <div style="display: flex; gap: 10px; margin-top: 10px;">

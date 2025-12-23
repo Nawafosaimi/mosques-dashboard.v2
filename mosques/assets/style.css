@@ -377,8 +377,7 @@ div[data-testid="stDialog"] .stFileUploader button {
   overflow-y: auto;
   overflow-x: auto;
   margin-top: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border-radius: 0;
+  border-radius: 12px;
   position: relative;
 }
 
@@ -539,6 +538,10 @@ div[data-testid="stDialog"] button[kind="secondary"]:hover {
   font-size: 14px;
   font-weight: 600;
   color: #4a5b52;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
 }
 
 .kpi .delta.up {
@@ -549,8 +552,32 @@ div[data-testid="stDialog"] button[kind="secondary"]:hover {
   color: #c0392b;
 }
 
-.kpi .delta.flat,
 .kpi .delta.neutral {
+  color: #4a5b52;
+}
+
+.delta-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+.delta-badge.up {
+  background-color: #e8f5e9;
+  color: #198754;
+}
+
+.delta-badge.down {
+  background-color: #ffebee;
+  color: #c0392b;
+}
+
+.delta-badge.flat,
+.delta-badge.neutral {
+  background-color: #e2e2e2;
   color: #4a5b52;
 }
 
