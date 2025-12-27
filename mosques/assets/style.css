@@ -192,10 +192,14 @@ header[data-testid="stHeader"] {
   border: 1px solid #e1d9c6;
   box-shadow: 0 1px 3px rgba(18, 27, 23, 0.04);
   width: auto;
-  margin: 0;
-  white-space: normal;
-  word-break: break-word;
   min-width: 0;
+  height: auto;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  white-space: normal;
 }
 
 /* Hide Streamlit three dots menu and Deploy button */
@@ -353,14 +357,14 @@ div[data-testid="stDialog"] .stFileUploader button {
 
 .meter-info-card .meter-label {
   font-family: 'Tajawal', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   color: #456E58;
   margin-bottom: 4px;
 }
 
 .meter-info-card .meter-value {
   font-family: 'Tajawal', sans-serif;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #1a2f29;
   margin-bottom: 12px;
@@ -368,7 +372,7 @@ div[data-testid="stDialog"] .stFileUploader button {
 
 .meter-info-card .meter-value.highlight {
   color: #456E58;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 /* Improved Table Styling */
@@ -519,8 +523,10 @@ div[data-testid="stDialog"] button[kind="secondary"]:hover {
 }
 
 .kpi .t {
-  font-size: 18px;
+  font-size: 16px;
   color: #2b5d4a;
+  white-space: normal;
+  margin-bottom: 5px;
 }
 
 .kpi .v {

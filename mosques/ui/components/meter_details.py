@@ -10,7 +10,7 @@ import folium
 from streamlit_folium import st_folium
 
 import config
-from data import find_coord_cols
+from data import find_coord_cols, load_visits_data, get_visit_status
 from domain import safe_str
 from ui.utils import render_plotly_chart
 from .header import render_header
@@ -124,26 +124,66 @@ def render_meter_details(
 
     lon_col, lat_col = find_coord_cols(metadata)
 
-    _, cinfo1, _, cinfo2, _ = st.columns([0.5, 1, 0.2, 1.5, 0.5])
-    with cinfo1:
-        if not meta_row.empty:
-            st.markdown(
-                (
-                    "<div class='meter-info-card'>"
-                    "<div class='meter-label'>رقم العداد</div>"
-                    f"<div class='meter-value'>{meter_id_str}</div>"
-                    "<div class='meter-label'>المحافظة</div>"
-                    f"<div class='meter-value'>{province_name}</div>"
-                    "<div class='meter-label'>إجمالي الاستهلاك</div>"
-                    f"<div class='meter-value highlight'>{int(total_bill):,} ريال</div>"
-                    f"<div style='font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 12px;'>(من {first_q} إلى {last_q})</div>"
-                    "</div>"
-                ),
-                unsafe_allow_html=True,
-            )
+    # Load visit info early to include in meter info card
+    visits_df = load_visits_data()
+    visit_info = get_visit_status(meter_id_str, visits_df)
+    
+    # Determine visit status display
+    if visit_info['visited']:
+        action_status = visit_info.get('action_status', '')
+        if action_status and 'تمت المعالجة' in str(action_status):
+            visit_status_html = "<span style='color: #0B9444;'>تمت الزيارة </span>"
         else:
-            st.info("لا توجد بيانات تعريفية لهذا العداد في ملف Industry Code.")
-    with cinfo2:
+            visit_status_html = "<span style='color: #ff8c00;'>تحت الإجراء ⏳</span>"
+        visit_date = visit_info.get('visit_date', '') or 'غير محدد'
+        causes = visit_info.get('causes', '') or 'لا توجد معلومات'
+        violation_type = visit_info.get('violation_type', '') or 'غير محدد'
+    else:
+        visit_status_html = "<span style='color: #c53030;'>لم تتم الزيارة ❌</span>"
+        visit_date = "-"
+        causes = "-"
+        violation_type = "-"
+
+    # Layout: info card, GAP, map with margins
+    # Adjust the middle value (0.1) to control space between card and map
+    _, info_col, _, map_col, _ = st.columns([0.2, 0.7, 0.1, 1.0, 0.2])
+    
+    with info_col:
+        if not meta_row.empty:
+            # Grid with nowrap to prevent wrapping on zoom
+            card_html = f"""
+            <div class='meter-info-card' style='padding: 16px; direction: rtl; overflow-x: auto;'>
+                <div style='display: grid; grid-template-columns: auto auto auto; gap: 40px; justify-content: start; width: 100%; white-space: nowrap;'>
+                    <div>
+                        <div class='meter-label'>رقم العداد</div>
+                        <div class='meter-value'>{meter_id_str}</div>
+                    </div>
+                    <div>
+                        <div class='meter-label'>المحافظة</div>
+                        <div class='meter-value'>{province_name}</div>
+                    </div>
+                    <div>
+                        <div class='meter-label'>إجمالي الاستهلاك</div>
+                        <div class='meter-value highlight'>{int(total_bill):,} ريال</div>
+                        <div style='font-size: 11px; color: #8a7a63; margin-top: 2px;'>(من الربع الرابع 2024 إلى الربع الثالث 2025)</div>
+                    </div>
+                    <div>
+                        <div class='meter-label'>حالة الزيارة</div>
+                        <div class='meter-value'>{visit_status_html}</div>
+                    </div>
+                    <div>
+                        <div class='meter-label'>تاريخ الزيارة</div>
+                        <div class='meter-value'>{visit_date}</div>
+                    </div>
+                </div>
+                {'<div style="margin-top: 10px; border-top: 1px solid #e1d9c6; padding-top: 8px;"><div class="meter-label">المسببات</div><div class="meter-value" style="font-size: 13px; line-height: 1.4;">' + causes + '</div></div>' if visit_info['visited'] else ''}
+            </div>
+            """
+            st.markdown(card_html, unsafe_allow_html=True)
+        else:
+            st.info("لا توجد بيانات تعريفية لهذا العداد.")
+    
+    with map_col:
         if (
             not meta_row.empty
             and lon_col
@@ -153,7 +193,6 @@ def render_meter_details(
         ):
             lon, lat = float(meta_row.iloc[0][lon_col]), float(meta_row.iloc[0][lat_col])
             
-            # Create Folium Map (Static)
             m = folium.Map(
                 location=[lat, lon], 
                 zoom_start=15, 
@@ -167,51 +206,38 @@ def render_meter_details(
                 keyboard=False
             )
             
-            # Add marker with mosque icon (same as province map)
             folium.Marker(
                 [lat, lon],
                 icon=folium.Icon(icon="mosque", prefix="fa", color="red")
             ).add_to(m)
             
-            # Display the map
-            st_folium(m, height=250, width="100%", key="meter_map", returned_objects=[])
+            st_folium(m, height=220, width="100%", key="meter_map", returned_objects=[])
             
-            # Add location link (Styled like the "Back" button)
             if location_link:
                 st.markdown(
-                    f"""
-                    <style>
-                    .btn-google-maps {{
-                        display: inline-block;
-                        background-color: #f4efe2;
-                        color: #1a2f29 !important;
-                        border: 1px solid #e1d9c6;
-                        border-radius: 8px;
-                        padding: 6px 24px;
-                        text-decoration: none !important;
-                        font-family: 'Tajawal', sans-serif;
-                        font-size: 15px;
-                        font-weight: 400;
-                        transition: all 0.2s ease;
-                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-                    }}
-                    .btn-google-maps:hover {{
-                        background-color: #eaddc5 !important;
-                        border-color: #d4c8b0 !important;
-                        color: #1a2f29 !important;
-                        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
-                    }}
-                    </style>
-                    <div style="text-align:center; margin-top:16px;">
-                        <a href="{location_link}" target="_blank" class="btn-google-maps">
-                            فتح الموقع في خرائط قوقل
-                        </a>
-                    </div>
-                    """,
+                    f"""<div style='text-align:center; margin-top:8px;'>
+                        <a href='{location_link}' target='_blank' 
+                           style='
+                               background:#f4efe2; 
+                               color:#1a2f29; 
+                               border:1px solid #e1d9c6; 
+                               border-radius:8px; 
+                               padding:8px 20px; 
+                               text-decoration:none; 
+                               font-size:16px;
+                               box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+                               display: inline-block;
+                               transition: all 0.2s ease;
+                           '
+                           onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0'; this.style.boxShadow='0 4px 10px rgba(0, 0, 0, 0.12)';"
+                           onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6'; this.style.boxShadow='0 2px 6px rgba(0, 0, 0, 0.08)';"
+                        >فتح في خرائط قوقل</a>
+                    </div>""",
                     unsafe_allow_html=True
                 )
         else:
-            st.info("لا تتوفر إحداثيات X,Y لهذا العداد.")
+            st.info("لا تتوفر إحداثيات.")
+
     st.markdown("### ملخص الأرباع")
     merged_rows = []
     for quarter in config.QUARTERS:
@@ -234,35 +260,58 @@ def render_meter_details(
             if not row.empty:
                 if "قيمة الفاتورة الإجمالي" in row.columns:
                     val = row.iloc[0]["قيمة الفاتورة الإجمالي"]
-                    try:
-                        val_float = float(val)
-                        bill_value = f"{int(val_float):,} ريال"
-                        bill_numeric = val_float
-                    except (ValueError, TypeError):
-                        bill_value = f"{val} ريال"
+                    if pd.notna(val):
+                        try:
+                            val_float = float(val)
+                            bill_value = f"{int(val_float):,} ريال"
+                            bill_numeric = val_float
+                        except (ValueError, TypeError):
+                            bill_value = f"{val} ريال"
                 
                 # Extract period data if available
                 if "الفترة صباحا/مساء" in row.columns:
                     period_val = row.iloc[0]["الفترة صباحا/مساء"]
-                    period_value = safe_str(period_val) if pd.notna(period_val) else ""
+                    period_value = safe_str(period_val) if pd.notna(period_val) and str(period_val).lower() != 'nan' else ""
                 
-                # Extract violation percentages
                 col_morning = "نسبة التجاوز في الفترة الصباحية"
                 if col_morning in row.columns:
                      val = row.iloc[0][col_morning]
-                     try:
-                         # Format as percentage if numeric (0.85 -> 85%)
-                         morning_pct = f"{float(val) * 100:.0f}%"
-                     except (ValueError, TypeError):
-                         morning_pct = str(val) if pd.notna(val) else ""
+                     if pd.notna(val) and str(val).lower() != 'nan':
+                         try:
+                             # Format as percentage if numeric (0.85 -> 85%)
+                             morning_pct = f"{float(val) * 100:.0f}%"
+                         except (ValueError, TypeError):
+                             morning_pct = str(val)
 
                 col_evening = "نسبة التجاوز في الفترة المسائية"
                 if col_evening in row.columns:
                      val = row.iloc[0][col_evening]
-                     try:
-                         evening_pct = f"{float(val) * 100:.0f}%"
-                     except (ValueError, TypeError):
-                         evening_pct = str(val) if pd.notna(val) else ""
+                     if pd.notna(val) and str(val).lower() != 'nan':
+                         try:
+                             evening_pct = f"{float(val) * 100:.0f}%"
+                         except (ValueError, TypeError):
+                             evening_pct = str(val)
+
+        # Visit status logic
+        visit_status_display = ""
+        if visit_info['visited']:
+            v_date_str = visit_info.get('visit_date', '')
+            # Parse date if needed (it might be string)
+            v_date_obj = None
+            if v_date_str:
+                 try:
+                     v_date_obj = pd.to_datetime(v_date_str, dayfirst=True).to_pydatetime()
+                 except:
+                     pass
+            
+            # Check if date falls in this quarter
+            if v_date_obj and quarter in config.QUARTER_DATES:
+                q_start, q_end = config.QUARTER_DATES[quarter]
+                if q_start <= v_date_obj <= q_end:
+                    visit_status_display = f"تمت الزيارة ({v_date_str})"
+            elif not v_date_obj:
+                 # Fallback if no date object (shouldn't happen with new loader)
+                 visit_status_display = "تمت الزيارة"
 
         merged_rows.append(
             {
@@ -272,6 +321,7 @@ def render_meter_details(
                 "نسبة التجاوز في الفترة الصباحية": morning_pct,
                 "نسبة التجاوز في الفترة المسائية": evening_pct,
                 "قيمة الاستهلاك الإجمالي": bill_value,
+                "حالة الزيارة": visit_status_display,
                 "bill_numeric": bill_numeric,
             }
         )
@@ -357,4 +407,3 @@ def render_meter_details(
         )
 
     st.stop()
-

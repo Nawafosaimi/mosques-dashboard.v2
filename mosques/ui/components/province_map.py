@@ -8,7 +8,7 @@ from streamlit_folium import st_folium
 import json
 
 import config
-from data import find_coord_cols
+from data import find_coord_cols, load_visits_data, get_visit_status
 from domain import simplify_geom
 from .header import render_header
 
@@ -67,6 +67,100 @@ def _prepare_violator_data(
         "violator_meters": violator_meters,
         "governorate_map": governorate_map,
     }
+
+
+@st.cache_data
+def _prepare_map_markers_data(
+    _mosque_df: pd.DataFrame,
+    _visits_df: pd.DataFrame,
+    governorate_map: dict,
+    sel_q_map: str,
+    lat_col: str,
+    lon_col: str,
+    all_label: str
+):
+    """
+    Vectorized preparation of map marker data.
+    Returns a list of lists: [lat, lon, name, meter_id, governorate, marker_color, visit_status, visit_date, causes, violation_type]
+    """
+    if _mosque_df.empty:
+        return []
+
+    # Prepare base dataframe
+    df = _mosque_df.copy()
+    
+    # Ensure meter IDs are strings and stripped for matching
+    df["METER_ID_STR"] = df["METER_ID_STR"].astype(str).str.strip()
+    
+    # Prepare visits dataframe for merge
+    v_df = _visits_df.copy()
+    if not v_df.empty and "رقم عداد الكهرباء" in v_df.columns:
+        v_df["meter_id_match"] = v_df["رقم عداد الكهرباء"].astype(str).str.strip()
+        v_df = v_df.drop_duplicates(subset=["meter_id_match"])
+        
+        merged = pd.merge(
+            df, 
+            v_df[['meter_id_match', 'التاريخ الميلادي (تقريبي)', 'الإجراء المتخذ', 'المسببات', 'نوع المخالفة']], 
+            left_on="METER_ID_STR", 
+            right_on="meter_id_match", 
+            how="left"
+        )
+    else:
+        merged = df.copy()
+        merged["meter_id_match"] = None
+        merged["التاريخ الميلادي (تقريبي)"] = None
+        merged["الإجراء المتخذ"] = None
+        merged["المسببات"] = None
+        merged["نوع المخالفة"] = None
+
+    # Default values
+    merged["marker_color"] = "red"
+    merged["visit_status_display"] = "لم تتم الزيارة"
+    merged["visit_date_display"] = ""
+    merged["causes_display"] = ""
+    merged["violation_display"] = ""
+
+    visited_mask = merged["meter_id_match"].notna()
+    
+    if sel_q_map != all_label and sel_q_map in config.QUARTER_DATES:
+        q_start, q_end = config.QUARTER_DATES[sel_q_map]
+        merged["_dt_temp"] = pd.to_datetime(merged["التاريخ الميلادي (تقريبي)"], dayfirst=True, errors='coerce')
+        date_in_range = (merged["_dt_temp"] >= q_start) & (merged["_dt_temp"] <= q_end)
+        final_visited_mask = visited_mask & date_in_range
+    else:
+        final_visited_mask = visited_mask
+
+    if final_visited_mask.any():
+        merged.loc[final_visited_mask, "visit_date_display"] = merged.loc[final_visited_mask, "التاريخ الميلادي (تقريبي)"].fillna("")
+        merged.loc[final_visited_mask, "causes_display"] = merged.loc[final_visited_mask, "المسببات"].fillna("")
+        merged.loc[final_visited_mask, "violation_display"] = merged.loc[final_visited_mask, "نوع المخالفة"].fillna("")
+        
+        action_col = merged.loc[final_visited_mask, "الإجراء المتخذ"].astype(str).fillna("")
+        resolved_mask = action_col.str.contains("تمت المعالجة")
+        
+        merged.loc[final_visited_mask & (merged.index.isin(action_col[resolved_mask].index)), "marker_color"] = "green"
+        merged.loc[final_visited_mask & (merged.index.isin(action_col[resolved_mask].index)), "visit_status_display"] = "تمت الزيارة"
+        
+        pending_mask = ~resolved_mask
+        merged.loc[final_visited_mask & (merged.index.isin(action_col[pending_mask].index)), "marker_color"] = "orange"
+        merged.loc[final_visited_mask & (merged.index.isin(action_col[pending_mask].index)), "visit_status_display"] = "تحت الإجراء"
+
+    merged["governorate_display"] = merged["METER_ID_STR"].map(governorate_map).fillna("")
+
+    final_data = merged[[
+        lat_col, 
+        lon_col, 
+        "Name", 
+        "METER_ID_STR", 
+        "governorate_display", 
+        "marker_color", 
+        "visit_status_display", 
+        "visit_date_display", 
+        "causes_display", 
+        "violation_display"
+    ]].values.tolist()
+    
+    return final_data
 
 
 def render_province_map(
@@ -142,6 +236,9 @@ def render_province_map(
     mosque_df[lon_col] = mosque_df[lon_col].astype(float)
     mosque_df["METER_ID_STR"] = mosque_df["METER_ID_STR"].astype(str)
     mosque_df["Name"] = mosque_df["Name"].fillna("—")
+
+    # Load visits data for color coding
+    visits_df = load_visits_data()
 
     # --- Map Center & Zoom (CACHED) ---
     geom_data = _get_province_geometry(regions, province_param)
@@ -234,26 +331,20 @@ def render_province_map(
         ).add_to(m)
 
     # 2. Add Mosque Markers with FastMarkerCluster
-    # We use FastMarkerCluster with a custom JS callback to handle popups efficiently
-    # This avoids creating thousands of Marker objects in Python, which is slow.
-    
     from folium.plugins import FastMarkerCluster
 
-    # Prepare data for FastMarkerCluster: [[lat, lon, name, meter_id], ...]
-    # Optimization: Send only raw data, generate HTML in JS to reduce payload size
-    map_data = []
-    
-    for _, row in mosque_df.iterrows():
-        meter_id = row["METER_ID_STR"]
-        name = row["Name"]
-        lat = row[lat_col]
-        lon = row[lon_col]
-        governorate = governorate_map.get(meter_id, "")
-        map_data.append([lat, lon, name, meter_id, governorate])
+    # Use cached vectorized data preparation
+    map_data = _prepare_map_markers_data(
+        mosque_df,
+        visits_df,
+        governorate_map,
+        sel_q_map,
+        lat_col,
+        lon_col,
+        all_label
+    )
 
     # Define JS callback to create markers with popups
-    # 'row' corresponds to an item in map_data: [lat, lon, name, meter_id, consumption]
-    # We construct the HTML entirely on the client side
     callback = f"""
     function (row) {{
         var lat = row[0];
@@ -261,10 +352,34 @@ def render_province_map(
         var name = row[2];
         var meter_id = row[3];
         var governorate = row[4] || "";
+        var marker_color = row[5] || "red";
+        var visit_status = row[6] || "لم تتم الزيارة";
+        var visit_date = row[7] || "";
+        var causes = row[8] || "";
+        var violation_type = row[9] || "";
         
-        // Use root-relative path '/' to ensure we link to the main app, not the iframe's path
         var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}";
         var google_maps_link = "https://www.google.com/maps/search/?api=1&query=" + lat + "," + lon;
+        
+        var badge_color = marker_color === 'green' ? '#0B9444' : (marker_color === 'orange' ? '#ff8c00' : '#dc3545');
+        
+        var visit_info_html = '';
+        if (visit_date) {{
+            visit_info_html += `
+                <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #8a7a63; font-size: 12px;">تاريخ الزيارة:</span>
+                    <span style="color: #1a2f29; font-size: 13px; font-weight: 600;">${{visit_date}}</span>
+                </div>
+            `;
+        }}
+        if (causes) {{
+            visit_info_html += `
+                <div style="margin-bottom: 8px;">
+                    <span style="color: #8a7a63; font-size: 12px; display: block; margin-bottom: 4px;">المسببات:</span>
+                    <span style="color: #1a2f29; font-size: 12px; line-height: 1.4;">${{causes}}</span>
+                </div>
+            `;
+        }}
         
         var popup_html = `
             <div style="
@@ -286,14 +401,27 @@ def render_province_map(
                     padding-bottom: 10px;
                 ">${{name}}</h4>
                 
-                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: #8a7a63; font-size: 13px;">رقم العداد:</span>
                     <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{meter_id}}</span>
                 </div>
-                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: #8a7a63; font-size: 13px;">المحافظة:</span>
                     <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{governorate}}</span>
                 </div>
+                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #8a7a63; font-size: 13px;">حالة الزيارة:</span>
+                    <span style="
+                        background-color: ${{badge_color}};
+                        color: white;
+                        padding: 3px 10px;
+                        border-radius: 12px;
+                        font-size: 12px;
+                        font-weight: 600;
+                    ">${{visit_status}}</span>
+                </div>
+                
+                ${{visit_info_html}}
                 
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
                     <a href="${{details_link}}" target="_blank" style="
@@ -352,7 +480,7 @@ def render_province_map(
         
         var icon = L.AwesomeMarkers.icon({{
             icon: 'mosque',
-            markerColor: 'red',
+            markerColor: marker_color,
             prefix: 'fa'
         }});
         marker.setIcon(icon);
@@ -373,7 +501,7 @@ def render_province_map(
         m,
         width="100%",
         height=700,
-        returned_objects=[], # We rely on HTML links for interaction now
+        returned_objects=[],
         debug=False,
     )
 

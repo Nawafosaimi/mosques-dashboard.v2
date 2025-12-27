@@ -10,7 +10,7 @@ import streamlit as st
 
 import config
 from domain import localize_booleans
-
+from data import load_visits_data, get_visited_meter_ids, get_visit_stats
 from .kpi_card import render_kpi_card
 from .header import render_header
 
@@ -43,7 +43,7 @@ def render_province_details(
             st.query_params.clear()
             st.rerun()
     with map_col:
-        if st.button(" فتح الخريطة", key="btn_open_map", use_container_width=True):
+        if st.button(" فتح الخريطة التفاعلية", key="btn_open_map", use_container_width=True):
             st.query_params.update(province=province_param, quarter=quarter_param, view="map")
             st.rerun()
 
@@ -125,6 +125,29 @@ def render_province_details(
     )
     violations_count = len(table_q.dropna(how="all"))
 
+    # Load visits data and calculate stats
+    visits_df = load_visits_data()
+    
+    # Filter visits_df based on selected quarter date range to match table logic
+    if selected_quarter != all_quarters_label and selected_quarter in config.QUARTER_DATES:
+        q_start, q_end = config.QUARTER_DATES[selected_quarter]
+        # Ensure we have datetime objects for comparison
+        if "التاريخ الميلادي (تقريبي)" in visits_df.columns:
+            # Parse dates if strictly needed, or do it more efficiently
+            # We reuse the logic from get_visit_status but vectorized
+             try:
+                visits_df["_dt_temp"] = pd.to_datetime(visits_df["التاريخ الميلادي (تقريبي)"], dayfirst=True, errors='coerce')
+                visits_df = visits_df[
+                    (visits_df["_dt_temp"] >= q_start) & 
+                    (visits_df["_dt_temp"] <= q_end)
+                ].copy()
+             except Exception:
+                 pass # Fallback to using all if parsing fails to avoid empty
+
+    violator_meter_ids = set(table_q["رقم العداد"].astype(str).str.strip().unique()) if "رقم العداد" in table_q.columns else set()
+    visited_meter_ids = get_visited_meter_ids(visits_df)
+    visit_stats = get_visit_stats(visits_df, violator_meter_ids)
+
     # Helper function for delta calculation (same as overview)
     def _quarter_count(label: str | None) -> int:
         if not label:
@@ -190,11 +213,12 @@ def render_province_details(
 
     # Render KPIs in the middle column (dynamic width based on content)
     with kpi_col:
-        k1, k2 = st.columns([1, 1.2], gap="medium")
+        # Increase width for Violations (middle) and Visited (right) cards to fit text
+        k1, k2, k3 = st.columns([3.9, 4.8, 2.3], gap="medium")
 
         with k1:
             render_kpi_card(
-                title="عدد المساجد",
+                title=f"عدد المساجد في {ar_province}",
                 value=f"{total_mosques:,}",
                 delta_html=mosques_delta_html
             )
@@ -211,10 +235,74 @@ def render_province_details(
                 value_color_class="red"
             )
 
+        with k3:
+            render_kpi_card(
+                title="تمت زيارتهم",
+                value=f"{visit_stats['total_visited']:,}",
+                delta_html=f"<div class='delta neutral'>من أصل {violations_count:,} مسجد</div>"
+            )
+
     # Prepare display dataframe
     display = table_q.dropna(how="all").reset_index(drop=True).copy()
     if "الموقع" in display.columns:
         display["الموقع"] = display["الموقع"].fillna("")
+
+    # Add merged "Visit Status" (حالة الزيارة) with date filtering
+    if "رقم العداد" in display.columns:
+        # Get quarter date range
+        q_start, q_end = config.QUARTER_DATES.get(selected_quarter, (None, None))
+        
+        def _get_visit_display(meter_val):
+            meter_id = str(meter_val).strip()
+            if meter_id not in visited_meter_ids:
+                return "لا"
+                
+            # If visited, check date
+            # We need to look up the date for this specific meter
+            # Optimization: Pre-fetch dates if not already done
+            return "نعم" # Fallback if specific date logic needs the dataframe lookup below
+
+        # Create map for visit dates
+        visit_date_map = {}
+        if not visits_df.empty and "رقم عداد الكهرباء" in visits_df.columns:
+            date_col = 'التاريخ الميلادي (تقريبي)'
+            if date_col in visits_df.columns:
+                visit_date_map = dict(zip(
+                    visits_df["رقم عداد الكهرباء"].astype(str).str.strip(), 
+                    visits_df[date_col]
+                ))
+
+        def _resolve_visit_status(meter_val):
+             meter_id = str(meter_val).strip()
+             if meter_id not in visited_meter_ids:
+                 return "لا"
+             
+             date_str = visit_date_map.get(meter_id)
+             if not date_str:
+                 return "تمت الزيارة (تاريخ غير محدد)"
+                 
+             # Check if date is in quarter range
+             try:
+                 visit_date = pd.to_datetime(date_str, dayfirst=True).to_pydatetime()
+                 if q_start and q_end:
+                     if q_start <= visit_date <= q_end:
+                         return f"تمت الزيارة ({date_str})"
+                     else:
+                         # Visited but not in this quarter
+                         return "لا"
+                 else:
+                     # No quarter selected (or 'All Quarters'), show date
+                     return f"تمت الزيارة ({date_str})"
+             except:
+                 # Date parse failed, treat as visited
+                 return f"تمت الزيارة ({date_str})"
+
+        display["حالة الزيارة"] = display["رقم العداد"].astype(str).str.strip().apply(_resolve_visit_status)
+    
+    # Remove old columns if they exist (cleanup)
+    display = display.drop(columns=["تمت الزيارة", "تاريخ الزيارة"], errors="ignore")
+
+    display = localize_booleans(display)
 
     display = localize_booleans(display)
 
@@ -239,6 +327,7 @@ def render_province_details(
         "الفترة صباحا/مساء",
         "قيمة الاستهلاك الإجمالي",
         "مخالف سابقا",
+        "حالة الزيارة",
         "الموقع",
     ]
     existing_cols = display.columns.tolist()
@@ -290,7 +379,7 @@ def render_province_details(
 
     # All controls in one row: title, search, sort, filters, pagination, and export
     st.markdown('<div data-table-controls="province-filters">', unsafe_allow_html=True)
-    title_col, search_col, sort_col, order_col, sheet_col, gov_col, period_col, rows_col, page_col, export_col = st.columns([1.5, 1, 0.9, 0.8, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6])
+    title_col, search_col, sort_col, order_col, sheet_col, gov_col, period_col, visit_col, rows_col, page_col, export_col = st.columns([1.3, 0.9, 0.8, 0.7, 0.7, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5])
 
     with title_col:
         # We will update this later with the filtered count
@@ -420,6 +509,20 @@ def render_province_details(
         else:
             selected_period = ""
 
+    # Visit status filter
+    selected_visit_status = ""
+    with visit_col:
+        # Always show visit status filter
+        _control_label("حالة الزيارة")
+        visit_status_options = ["الكل", "تمت الزيارة", "لم تتم الزيارة"]
+        selected_visit_status = st.selectbox(
+            "حالة الزيارة",
+            visit_status_options,
+            index=0,
+            label_visibility="collapsed",
+            key="detail_visit_status",
+        )
+
 
     with rows_col:
         _control_label("عدد الصفوف")
@@ -460,6 +563,14 @@ def render_province_details(
 
     if selected_period and selected_period != "الكل" and period_col_name in df_filtered.columns:
         df_filtered = df_filtered[df_filtered[period_col_name].astype(str) == selected_period].copy()
+
+    # Apply visit status filter
+    if selected_visit_status and selected_visit_status != "الكل" and "حالة الزيارة" in df_filtered.columns:
+        if selected_visit_status == "تمت الزيارة":
+            # Match strictly "تمت الزيارة..." which includes the date
+            df_filtered = df_filtered[df_filtered["حالة الزيارة"].astype(str).str.startswith("تمت الزيارة")].copy()
+        elif selected_visit_status == "لم تتم الزيارة":
+            df_filtered = df_filtered[df_filtered["حالة الزيارة"] == "لا"].copy()
 
     # Calculate pagination based on filtered data
     total_rows = len(df_filtered)

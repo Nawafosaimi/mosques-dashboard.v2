@@ -66,6 +66,7 @@ REGION_SIMPLIFY_TOLERANCE = _get_float_env("REGIONS_SIMPLIFY_TOLERANCE", 0.005)
 
 TIMESERIES_FILE = DATA_DIR / "mosque_violations_by_day.parquet"
 INDUSTRY_META_FILE = DATA_DIR / "Industry Code with Population 1.parquet"
+VISITS_FILE = DATA_DIR / "site visits 3.1.csv"
 
 QUARTER_FILES_STATIC: Dict[str, Path] = {
     "الربع الرابع 2024": DATA_DIR
