@@ -20,6 +20,7 @@ from ui.components import (
     render_province_details,
     render_province_map,
 )
+from auth import create_authenticator, render_login_page, get_current_user
 
 
 
@@ -35,7 +36,22 @@ def main():
     )
     apply_base_styles()
 
-    # 2. Initialize session state
+    # 2. Create authenticator
+    authenticator = create_authenticator()
+
+    # 3. Authentication check
+    if not render_login_page(authenticator):
+        return  # Stop here if not authenticated
+    
+    # 4. Add logout capability (using authenticator's method)
+    # We place it in a container that we will target with CSS in header.py
+    with st.container():
+        authenticator.logout(button_name="خروج", location="main")
+    
+    # Store authenticator in session for future use
+    st.session_state.authenticator = authenticator
+
+    # 3. Initialize session state
     if "refresh_quarters" not in st.session_state:
         st.session_state.refresh_quarters = False
 

@@ -390,14 +390,95 @@ def build_overview_map(regions_map):
         boxZoom=False,
         keyboard=False,
     )
-    m.get_root().html.add_child(
-        folium.Element("<style>.leaflet-control-attribution{display:none !important;}</style>")
-    )
+    
+    # Custom CSS for tooltip styling to match province map popup design
+    tooltip_css = """
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .leaflet-control-attribution{display:none !important;}
+        
+        /* Custom tooltip styling to match province map popups */
+        .leaflet-tooltip {
+            background: #faf8f3 !important;
+            border: none !important;
+            border-radius: 12px !important;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12) !important;
+            padding: 12px 16px !important;
+            font-family: 'Tajawal', sans-serif !important;
+            direction: rtl !important;
+            text-align: right !important;
+            min-width: 200px !important;
+        }
+        
+        .leaflet-tooltip::before {
+            display: none !important;
+        }
+        
+        /* Target all text inside tooltip */
+        .leaflet-tooltip,
+        .leaflet-tooltip * {
+            font-family: 'Tajawal', sans-serif !important;
+        }
+        
+        .leaflet-tooltip table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+        }
+        
+        .leaflet-tooltip table tr {
+            border-bottom: 1px solid #f0f0f0 !important;
+        }
+        
+        .leaflet-tooltip table tr:last-child {
+            border-bottom: none !important;
+        }
+        
+        .leaflet-tooltip table td,
+        .leaflet-tooltip table th {
+            padding: 8px 6px !important;
+            vertical-align: middle !important;
+            font-size: 14px !important;
+        }
+        
+        /* Labels column (th or first td) */
+        .leaflet-tooltip table th,
+        .leaflet-tooltip table td:first-child {
+            color: #8a7a63 !important;
+            font-size: 13px !important;
+            font-weight: 500 !important;
+            text-align: right !important;
+            padding-left: 20px !important;
+            white-space: nowrap !important;
+        }
+        
+        /* Values column (last td) */
+        .leaflet-tooltip table td:last-child {
+            color: #1a2f29 !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            text-align: left !important;
+            white-space: nowrap !important;
+        }
+        
+        /* Override any strong/bold tags inside */
+        .leaflet-tooltip strong,
+        .leaflet-tooltip b {
+            color: #8a7a63 !important;
+            font-weight: 500 !important;
+        }
+    </style>
+    """
+    m.get_root().html.add_child(folium.Element(tooltip_css))
+    
     folium.GeoJson(
         data=regions_map.__geo_interface__,
         style_function=lambda _: {"fillColor": "#0B9444", "color": "#0B9444", "weight": 1, "fillOpacity": 0.5},
         highlight_function=lambda _: {"weight": 3, "fillOpacity": 0.7},
-        tooltip=folium.GeoJsonTooltip(fields=["name_ar", "count_label"], aliases=["المنطقة", "عدد المتجاوزين"]),
+        tooltip=folium.GeoJsonTooltip(
+            fields=["name_ar", "count_label"], 
+            aliases=["المنطقة", "عدد المتجاوزين"],
+            sticky=False
+        ),
     ).add_to(m)
     return m
 

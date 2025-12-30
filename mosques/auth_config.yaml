@@ -1,0 +1,27 @@
+cookie:
+  expiry_days: 1  # Persistence enabled to allow proper logout via cookie clearing
+  key: mosques_dashboard_auth_key_2024
+  name: mosques_auth
+
+credentials:
+  usernames:
+    admin:
+      email: admin@energy.gov.sa
+      name: مدير النظام
+      password: $2b$12$5X.96SRmr.tMi01OQmf7numuBq5amqaaMRZ8hG4YaaDxCpqjgFGuq
+      role: admin
+    nawaf:
+      email: Nawaf.Alosaimi@energy.gov.sa
+      name: نواف العصيمي
+      password: $2b$12$MpxQMy0r0MUj64AIpsZAO.IC2M5.ClCBQ/XrGyXmuKPxzH1n1wFs2
+      role: admin
+    user1:
+      email: user1@energy.gov.sa
+      name: مستخدم تجريبي
+      password: $2b$12$Wwb6I0AzY3/bo4eXMh4K5eIVNjB/agE4aWaWWCqhOXwZGv5Tv/we2
+      role: user
+    user2:
+      email: user2@energy.gov.sa
+      name: أحمد محمد
+      password: $2b$12$blmPd2PfefjKk8w4PzFPYedJ8fg3eEA4RlzILsTrhiY6HB8pbDfHu
+      role: user

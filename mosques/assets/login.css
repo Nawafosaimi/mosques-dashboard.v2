@@ -1,0 +1,185 @@
+/* 
+   Login Page Design System 
+   Provides high-specificity overrides for Streamlit to create a premium, 
+   floating-card aesthetic for the Mosques Dashboard.
+*/
+
+/* 1. Base Page Background - Force beige theme */
+[data-testid="stAppViewContainer"],
+.stApp {
+    background-color: #faf8f3 !important;
+}
+
+/* 2. Hide common Streamlit elements during logout/login */
+header[data-testid="stHeader"] {
+    display: none !important;
+}
+
+/* 3. The Login Logo Container */
+.login-logo-container {
+    display: flex !important;
+    justify-content: center !important;
+    margin-bottom: 25px !important;
+    margin-top: 35px !important;
+}
+
+.login-logo {
+    max-width: 370px !important;
+    height: auto !important;
+    filter: drop-shadow(0 6px 15px rgba(0, 0, 0, 0.1)) !important;
+    transition: transform 0.3s ease !important;
+}
+
+/* 4. The main Login Card (Form) */
+div[data-testid="stForm"] {
+    max-width: 450px !important;
+    margin: 40px auto !important;
+    padding: 45px !important;
+    background-color: #fffdfa !important;
+    border: none !important;
+    border-radius: 28px !important;
+    box-shadow: 0 40px 100px rgba(11, 148, 68, 0.12), 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+    direction: rtl !important;
+}
+
+/* NUCLEAR RESET: Force everything inside the form to be transparent by default */
+/* This kills the "black thingys" hidden in nested Streamlit containers */
+div[data-testid="stForm"] *,
+div[data-testid="stForm"] div,
+div[data-testid="stForm"] button,
+div[data-testid="stForm"] input {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+/* 5. Form Title (H1/P equivalent) */
+div[data-testid="stForm"] [data-testid="stMarkdownContainer"] p {
+    text-align: center !important;
+    color: #0B9444 !important;
+    background: transparent !important;
+    font-family: 'Tajawal', sans-serif !important;
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #f0e6d2 !important;
+    padding-bottom: 18px !important;
+    margin-bottom: 35px !important;
+}
+
+/* 6. Label Styling */
+div[data-testid="stForm"] label {
+    color: #8a7a63 !important;
+    font-family: 'Tajawal', sans-serif !important;
+    font-weight: 600 !important;
+    margin-bottom: 12px !important;
+    display: block !important;
+    font-size: 15px !important;
+}
+
+/* 7. Input Field Refinement */
+/* Target the wrapper that Streamlit uses for inputs (BaseWeb) */
+div[data-testid="stForm"] [data-testid="stTextInput"]>div,
+div[data-testid="stForm"] [data-baseweb="input"] {
+    background-color: #faf8f3 !important;
+    background-image: none !important;
+    border: 1px solid #e1d9c6 !important;
+    border-radius: 12px !important;
+    padding: 2px !important;
+    transition: all 0.2s ease !important;
+}
+
+div[data-testid="stForm"] [data-testid="stTextInput"]:focus-within>div,
+div[data-testid="stForm"] [data-baseweb="input"]:focus-within {
+    border-color: #0B9444 !important;
+    box-shadow: 0 0 0 3px rgba(11, 148, 68, 0.08) !important;
+    background-color: #ffffff !important;
+}
+
+/* Reset the actual internal input element and force dark text */
+div[data-testid="stForm"] input {
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    color: #1a2f29 !important;
+    /* Force dark text color */
+    -webkit-text-fill-color: #1a2f29 !important;
+    /* Force for some browsers */
+    font-family: 'Tajawal', sans-serif !important;
+    font-size: 16px !important;
+    padding: 10px 12px !important;
+}
+
+/* 7.1 Hide the annoying "Press Enter to submit" prompt SAFELY */
+/* We target the specific div that contains the prompt without killing the input */
+div[data-testid="stForm"] [data-testid="stTextInput"] div[data-baseweb="input"]+div {
+    display: none !important;
+}
+
+/* Ensure the input itself is always interactive and visible */
+div[data-testid="stForm"] [data-testid="stTextInput"] input {
+    pointer-events: auto !important;
+    cursor: text !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* 8. Fix the "Split" Password Eye Icon */
+/* Ensure the button for the eye icon doesn't inherit global button styles */
+div[data-testid="stForm"] [data-testid="stTextInput"] button {
+    background: transparent !important;
+    border: none !important;
+    color: #8a7a63 !important;
+    margin: 0 !important;
+    width: auto !important;
+    padding: 0 12px !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+/* 9. Premium Transparent Login Button */
+div[data-testid="stForm"] button[kind="primary"],
+div[data-testid="stForm"] button[data-testid="stBaseButton-primary"],
+div[data-testid="stForm"] button[kind="primary"] div,
+div[data-testid="stForm"] button[data-testid="stBaseButton-primary"] div {
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+    color: #1a2f29 !important;
+    border: 2px solid #e1d9c6 !important;
+    border-radius: 14px !important;
+    font-family: 'Tajawal', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 18px !important;
+    height: 58px !important;
+    width: 100% !important;
+    margin-top: 25px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+div[data-testid="stForm"] button[kind="primary"]:hover,
+div[data-testid="stForm"] button[kind="primary"]:hover div {
+    background-color: rgba(11, 148, 68, 0.06) !important;
+    border-color: #0B9444 !important;
+    color: #0B9444 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 20px rgba(11, 148, 68, 0.1) !important;
+}
+
+div[data-testid="stForm"] button[kind="primary"]:active {
+    transform: translateY(0) !important;
+}
+
+/* 10. Info/Error Message Styling */
+[data-testid="stAppViewContainer"]:has([data-testid="stForm"]) .stAlert {
+    max-width: 450px !important;
+    margin: 15px auto !important;
+    border-radius: 15px !important;
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05) !important;
+}
