@@ -20,6 +20,7 @@ def get_base64_image(image_path: Path) -> str:
     except Exception:
         return ""
 
+
 def render_header() -> None:
     """Render the ministry logo using a reliable Base64 HTML overlay."""
     logo_path = ASSETS_DIR / "ministry_logo.png"
@@ -31,6 +32,7 @@ def render_header() -> None:
     if not img_base64:
         return
 
+    
     # 2. Render fixed overlay using CSS background-image
     # This prevents the "image reload" flicker by letting the browser cache the style
     st.markdown(
@@ -38,6 +40,43 @@ def render_header() -> None:
         <a href="/" target="_self" class="ministry-logo-link">
             <div class="ministry-logo-overlay"></div>
         </a>
+        
+        
+        <!-- Contact Us Button with CSS checkbox trick for click toggle -->
+        <input type="checkbox" id="contactToggle" class="contact-toggle-checkbox">
+        <label for="contactToggle" class="contact-header-btn">تواصل معنا</label>
+        <label for="contactToggle" class="contact-backdrop"></label>
+        <div class="contact-popup">
+            <label for="contactToggle" class="close-btn">✕</label>
+            <h4>تواصل معنا</h4>
+            <div class="contact-row" style="margin-bottom: 5px;">
+                <span class="contact-label">الإدارة:</span>
+                <span class="contact-value">الإدارة العامة للذكاء الاصطناعي وتطوير الاعمال</span>
+            </div>
+            <div class="contact-row">
+                <span class="contact-label">البريد الإلكتروني:</span>
+                <a href="mailto:AI@moenergy.gov.sa" class="contact-link">AI@moenergy.gov.sa</a>
+            </div>
+            <div class="contact-divider"></div>
+            <div class="contact-row">
+                <span class="contact-label">الاسم:</span>
+                <span class="contact-value">نواف العصيمي</span>
+            </div>
+            <div class="contact-row">
+                <span class="contact-label">البريد الإلكتروني:</span>
+                <a href="mailto:Nawaf.Alosaimi@moenergy.gov.sa" class="contact-link">Nawaf.Alosaimi@moenergy.gov.sa</a>
+            </div>
+            <div class="contact-divider"></div>
+            <div class="contact-row">
+                <span class="contact-label">الاسم:</span>
+                <span class="contact-value">عبد الرحمن السلوم</span>
+            </div>
+            <div class="contact-row">
+                <span class="contact-label">البريد الإلكتروني:</span>
+                <a href="mailto:Abdulrahman.Sallum@moenergy.gov.sa" class="contact-link">Abdulrahman.Sallum@moenergy.gov.sa</a>
+            </div>
+        </div>
+        
         <style>
             /* Hide Streamlit toolbar actions (Deploy, etc) - Reinforced */
             [data-testid="stToolbar"], 
@@ -54,13 +93,12 @@ def render_header() -> None:
             
             .ministry-logo-link {{
                 position: fixed;
-                top: 3px; /* User preference */
-                right: 70%; /* Shifted right */
-                transform: translateX(-50%);
+                top: 8px;
+                left: 20px; /* Moved to far left */
                 z-index: 999999;
                 display: block;
-                width: 200px; /* Fixed width for click area */
-                height: 55px;
+                width: 140px; /* Reduced from 200px */
+                height: 40px; /* Reduced from 55px */
                 pointer-events: auto;
                 cursor: pointer;
                 text-decoration: none !important;
@@ -68,7 +106,6 @@ def render_header() -> None:
             }}
             
             .ministry-logo-link:hover {{
-                transform: translateX(-50%) !important; /* Prevent shifting on hover */
                 text-decoration: none !important;
                 border: none !important;
             }}
@@ -79,42 +116,153 @@ def render_header() -> None:
                 background-image: url('data:image/png;base64,{img_base64}');
                 background-size: contain;
                 background-repeat: no-repeat;
-                background-position: center;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+                background-position: left center;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.05));
                 transition: filter 0.2s ease !important;
             }}
             
             /* Apply brightness glow on hover - no movement */
             .ministry-logo-link:hover .ministry-logo-overlay {{
-                filter: drop-shadow(0 2px 8px rgba(11, 148, 68, 0.4)) brightness(1.1) !important;
+                filter: drop-shadow(0 2px 8px rgba(11, 148, 68, 0.3)) brightness(1.1) !important;
             }}
             
-            /* Responsive: iPad/Large Tablet - adjust logo */
-            @media (max-width: 1024px) {{
-                .ministry-logo-link {{
-                    right: 65% !important;
-                    width: 170px !important;
-                    height: 48px !important;
-                }}
+            /* Contact Button Styles */
+            .contact-toggle-checkbox {{
+                display: none;
             }}
             
-            /* Responsive: Tablet - center the logo */
+            
+            
+            /* Invisible backdrop that covers screen when popup is open */
+            .contact-backdrop {{
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 999998;
+                background: transparent;
+                cursor: default;
+            }}
+            
+            /* Show backdrop when checkbox is checked */
+            .contact-toggle-checkbox:checked ~ .contact-backdrop {{
+                display: block;
+            }}
+            
+            .contact-header-btn {{
+                position: fixed;
+                top: 12px;
+                right: 20px;
+                z-index: 999999;
+                background: #F4EFE2;
+                color: #1a2f29;
+                border: 1px solid #e1d9c6;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-family: 'Tajawal', sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }}
+            
+            .contact-header-btn:hover {{
+                background: #ebe4d1;
+                border-color: #d4cbb3;
+            }}
+            
+            .contact-popup {{
+                display: none;
+                position: fixed;
+                top: 55px;
+                right: 20px;
+                z-index: 999999;
+                background: #faf8f3;
+                border-radius: 12px;
+                padding: 16px;
+                min-width: 300px;
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+                font-family: 'Tajawal', sans-serif;
+                direction: rtl;
+                text-align: right;
+            }}
+            
+            /* Show popup when checkbox is checked */
+            .contact-toggle-checkbox:checked ~ .contact-popup {{
+                display: block;
+            }}
+            
+            .contact-popup .close-btn {{
+                position: absolute;
+                top: 8px;
+                left: 8px;
+                background: none;
+                border: none;
+                font-size: 18px;
+                cursor: pointer;
+                color: #8a7a63;
+                padding: 5px;
+                line-height: 1;
+            }}
+            
+            .contact-popup .close-btn:hover {{
+                color: #1a2f29;
+            }}
+            
+            .contact-popup h4 {{
+                color: #0B9444;
+                margin: 0 0 12px 0;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #f0f0f0;
+                font-size: 16px;
+                font-weight: 700;
+            }}
+            
+            .contact-popup .contact-row {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+                padding: 4px 0;
+            }}
+            
+            .contact-popup .contact-label {{
+                color: #8a7a63;
+                font-size: 13px;
+            }}
+            
+            .contact-popup .contact-value {{
+                color: #1a2f29;
+                font-size: 14px;
+                font-weight: 600;
+            }}
+            
+            .contact-popup .contact-link {{
+                color: #0B9444;
+                font-size: 13px;
+                font-weight: 600;
+                text-decoration: none;
+                direction: ltr;
+            }}
+            
+            .contact-popup .contact-link:hover {{
+                text-decoration: underline;
+            }}
+            
+            .contact-popup .contact-divider {{
+                height: 1px;
+                background: #e0d8c8;
+                margin: 12px 0;
+            }}
+            
+            /* Responsive: Mobile - adjust logo */
             @media (max-width: 768px) {{
                 .ministry-logo-link {{
-                    right: auto !important;
-                    left: 50% !important;
-                    transform: translateX(-50%) !important;
-                    width: 200px !important;
-                    height: 55px !important;
-                }}
-            }}
-            
-            /* Responsive: Mobile - larger logo */
-            @media (max-width: 480px) {{
-                .ministry-logo-link {{
-                    top: 5px !important;
-                    width: 180px !important;
-                    height: 50px !important;
+                    left: 10px !important;
+                    width: 120px !important;
+                    height: 35px !important;
                 }}
             }}
         </style>

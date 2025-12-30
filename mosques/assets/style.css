@@ -214,30 +214,7 @@ button[data-testid="stBaseButton-header"],
   visibility: hidden !important;
 }
 
-/* Center the logo in the header */
-/* Center the logo in the header - Force fixed position with physical coordinates */
-div[data-testid="stLogo"] {
-  position: fixed !important;
-  top: 10px !important;
-  left: 50% !important;
-  /* Physical left center */
-  right: auto !important;
-  /* Reset right */
-  transform: translateX(-50%) !important;
-  /* Move back by 50% of width */
-  z-index: 99999 !important;
-  width: auto !important;
-  display: block !important;
-  pointer-events: none;
-}
-
-div[data-testid="stLogo"] img {
-  max-height: 90px !important;
-  /* Increased size */
-  width: auto !important;
-  display: block !important;
-  margin: 0 auto !important;
-}
+/* Logo centering removed to allow header.py localized styling to take precedence */
 
 /* Hide Streamlit spinner/loading indicator */
 div[data-testid="stSpinner"],
@@ -1336,29 +1313,7 @@ header[data-testid="stHeader"] {
   z-index: 1 !important;
 }
 
-.ministry-logo-overlay {
-  position: fixed !important;
-  top: 3px !important;
-  /* User preference */
-  right: 75% !important;
-  /* User preference */
-  transform: translateX(-50%) !important;
-  z-index: 999999 !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-  pointer-events: auto !important;
-  /* Enable clicks */
-  cursor: pointer !important;
-}
-
-.ministry-logo-overlay img {
-  height: 55px !important;
-  /* User preference */
-  width: auto !important;
-  object-fit: contain !important;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)) !important;
-}
+/* Conflict removed: .ministry-logo-overlay position fixed was breaking the header logo */
 
 /* ============================================
    RESPONSIVE DESIGN - IPAD/LARGE TABLET (max-width: 1024px)
