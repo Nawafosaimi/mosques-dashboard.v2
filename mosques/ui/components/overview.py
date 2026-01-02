@@ -184,7 +184,8 @@ def render_overview(
             render_kpi_card(
                 title="عدد المساجد في المملكة",
                 value=f"{total_mosques_overview:,}",
-                delta_html=mosques_delta_html
+                delta_html=mosques_delta_html,
+                tooltip="إجمالي عدد المساجد على مستوى المملكة"
             )
         
         with kpi_right:
@@ -196,7 +197,8 @@ def render_overview(
                 title=kpi_title,
                 value=f"{violations_count_overview:,}",
                 delta_html=violations_delta_html,
-                value_color_class="red"
+                value_color_class="red",
+                tooltip="المساجد المتجاوزة في الرياض حاليا"
             )
 
     col_map, col_bar = st.columns([1, 1], gap="medium")
@@ -224,9 +226,13 @@ def render_overview(
         if "overview_map_nonce" not in st.session_state:
             st.session_state.overview_map_nonce = 0
 
+        # Calculate chart height to match the bar chart
+        num_regions = len(regions_map) if hasattr(regions_map, '__len__') else 13
+        map_height = max(520, num_regions * 45)
+        
         m = build_overview_map(regions_map)
         map_key = f"overview_map_{st.session_state.overview_map_nonce}"
-        map_state = st_folium(m, height=435, width="stretch", key=map_key)
+        map_state = st_folium(m, height=540, width="stretch", key=map_key)
 
         province_clicked = None
         if map_state and map_state.get("last_object_clicked"):
@@ -242,39 +248,127 @@ def render_overview(
                 st.rerun()
 
     with col_bar:
-        st.markdown("### توزيع المساجد حسب المنطقة")
+        st.markdown("### توزيع المساجد حسب المنطقة (متجاوزين وغير متجاوزين)")
         if "Province" in metadata.columns:
-            counts = (
+            # Get total mosques per region
+            total_counts = (
                 metadata.dropna(subset=["Province"])
                 .groupby("Province")
                 .size()
-                .reset_index(name="count")
-                .sort_values("count", ascending=False)
-                .head(8)
+                .reset_index(name="total")
             )
+            
+            # Get combined violator data (deduplicated across all quarters)
+            combined_violators = get_combined_violator_data(all_violator_data)
+            
+            # Get violator IDs
+            violator_ids = (
+                combined_violators["رقم العداد"].astype(str).unique() 
+                if "رقم العداد" in combined_violators.columns else []
+            )
+            
+            # Get violator mosques from metadata
+            violator_mosques = (
+                metadata[metadata["METER_ID_STR"].isin(violator_ids)]
+                if len(violator_ids) > 0
+                else pd.DataFrame()
+            )
+            
+            # Count violators per region
+            if not violator_mosques.empty and "Province" in violator_mosques.columns:
+                violator_counts = (
+                    violator_mosques.dropna(subset=["Province"])
+                    .groupby("Province")
+                    .size()
+                    .reset_index(name="violators")
+                )
+            else:
+                violator_counts = pd.DataFrame(columns=["Province", "violators"])
+            
+            # Merge total and violator counts
+            region_data = total_counts.merge(violator_counts, on="Province", how="left")
+            region_data["violators"] = region_data["violators"].fillna(0).astype(int)
+            region_data["total"] = region_data["total"].fillna(0).astype(int)
+            # Ensure non_violators is always calculated correctly (never negative or NaN)
+            region_data["non_violators"] = (region_data["total"] - region_data["violators"]).clip(lower=0).astype(int)
+            
+            # Sort by total mosques (descending) - show all regions
+            region_data = region_data.sort_values("total", ascending=True)
+            
+            # Map to Arabic names
             reverse_region_map = {v: k for k, v in config.REGION_NAME_MAP.items()}
-            counts["Province_AR"] = counts["Province"].map(reverse_region_map).fillna(counts["Province"])
-
-            fig_prov_bar = px.bar(
-                counts.sort_values("count", ascending=True),
-                x="count",
-                y="Province_AR",
+            region_data["Province_AR"] = region_data["Province"].map(reverse_region_map).fillna(region_data["Province"])
+            
+            # Calculate percentages for hover (handle division by zero)
+            region_data["violator_pct"] = region_data.apply(
+                lambda row: round((row["violators"] / row["total"]) * 100, 1) if row["total"] > 0 else 0.0, axis=1
+            )
+            region_data["non_violator_pct"] = region_data.apply(
+                lambda row: round((row["non_violators"] / row["total"]) * 100, 1) if row["total"] > 0 else 0.0, axis=1
+            )
+            
+            # Create stacked bar chart
+            fig_stacked = go.Figure()
+            
+            # Add non-violators bar (green) - base of the stack
+            fig_stacked.add_trace(go.Bar(
+                name="غير متجاوزين",
+                y=region_data["Province_AR"],
+                x=region_data["non_violators"],
                 orientation="h",
-                text="count",
-            )
-            fig_prov_bar.update_traces(
-                texttemplate="%{text:,}",
-                textposition="outside",
                 marker_color="#2E8B57",
-                marker_line_color="rgba(0,0,0,0.2)",
-                marker_line_width=0,
-            )
-            max_val = counts["count"].max()
+                hovertemplate="<b>غير متجاوزين</b><br>" +
+                              "العدد: %{x:,}<br>" +
+                              "النسبة: %{customdata:.1f}%<extra></extra>",
+                customdata=region_data["non_violator_pct"],
+                textposition="none",
+            ))
+            
+            # Add violators bar (gold) - stacked on top of green
+            fig_stacked.add_trace(go.Bar(
+                name="متجاوزين",
+                y=region_data["Province_AR"],
+                x=region_data["violators"],
+                orientation="h",
+                marker_color="#DAA520",  # Gold color for violators
+                hovertemplate="<b>متجاوزين</b><br>" +
+                              "العدد: %{x:,}<br>" +
+                              "النسبة: %{customdata:.1f}%<extra></extra>",
+                customdata=region_data["violator_pct"],
+                textposition="none",
+            ))
+            
+            max_val = region_data["total"].max()
+            num_regions = len(region_data)
+            chart_height = max(520, num_regions * 45)  # Increased height for better visibility
+            
+            # Add annotations for total counts (always visible regardless of violator count)
+            annotations = []
+            for idx, row in region_data.iterrows():
+                annotations.append(dict(
+                    x=row["total"] + max_val * 0.02,  # Position slightly after the bar
+                    y=row["Province_AR"],
+                    text=f"{row['total']:,}",
+                    showarrow=False,
+                    font=dict(size=14, color="#114736"),
+                    xanchor="left",
+                    yanchor="middle",
+                ))
 
-            fig_prov_bar.update_layout(
-                height=467,
-                margin=dict(t=0, b=20, l=200, r=0),
-                showlegend=False,
+            fig_stacked.update_layout(
+                barmode="stack",
+                height=chart_height,
+                margin=dict(t=0, b=50, l=200, r=80),  # Increased bottom margin for legend
+                showlegend=True,
+                annotations=annotations,  # Add total count annotations
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.08,
+                    xanchor="center",
+                    x=0.5,
+                    font=dict(size=14, color="#114736"),
+                ),
                 xaxis_title="<b>عدد المساجد</b>",
                 yaxis_title="",
                 plot_bgcolor="rgba(0,0,0,0)",
@@ -284,17 +378,18 @@ def render_overview(
                     gridwidth=1,
                     gridcolor="#cfc8af",
                     zeroline=False,
-                    range=[0, max_val * 1.15],
+                    range=[0, max_val * 1.18],  # More room for text labels
                     tickfont=dict(color="#114736", size=16),
+                    title_standoff=60 #move x-axis title down
                 ),
-                yaxis=dict(showgrid=False, automargin=True, tickfont=dict(color="#114736", size=18)),
+                yaxis=dict(showgrid=False, automargin=True, tickfont=dict(color="#114736", size=16)),
                 font=dict(family="Tajawal, sans-serif", size=14, color="#114736"),
             )
-            fig_prov_bar.update_layout(dragmode=False)
-            fig_prov_bar.update_xaxes(fixedrange=True)
-            fig_prov_bar.update_yaxes(fixedrange=True)
+            fig_stacked.update_layout(dragmode=False)
+            fig_stacked.update_xaxes(fixedrange=True)
+            fig_stacked.update_yaxes(fixedrange=True)
             render_plotly_chart(
-                fig_prov_bar,
+                fig_stacked,
                 width_mode="stretch",
                 config={"displayModeBar": False, "scrollZoom": False},
             )
@@ -380,7 +475,7 @@ def build_overview_map(regions_map):
 
     m = folium.Map(
         location=[23.8859, 45.0792],
-        zoom_start=4.7,
+        zoom_start=5.2,
         tiles="CartoDB positron",
         zoom_control=False,
         dragging=False,

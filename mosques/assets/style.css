@@ -1629,3 +1629,100 @@ header[data-testid="stHeader"] {
     border-radius: 16px !important;
   }
 }
+
+/* ===== TOOLTIP STYLES ===== */
+.kpi.has-tooltip {
+  cursor: help;
+  position: relative;
+}
+
+.kpi.has-tooltip::after {
+  content: "ⓘ";
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 14px;
+  color: #8a7a63;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.kpi.has-tooltip:hover::after {
+  opacity: 1;
+  color: #0B9444;
+}
+
+/* ===== LOADING SKELETON STYLES ===== */
+.skeleton {
+  background: linear-gradient(90deg,
+      #f4efe2 0%,
+      #e8e1d0 50%,
+      #f4efe2 100%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite ease-in-out;
+  border-radius: 8px;
+}
+
+.skeleton-kpi {
+  height: 100px;
+  min-width: 180px;
+  margin-bottom: 10px;
+}
+
+.skeleton-chart {
+  height: 300px;
+  width: 100%;
+}
+
+.skeleton-table {
+  height: 400px;
+  width: 100%;
+}
+
+.skeleton-text {
+  height: 20px;
+  width: 60%;
+  margin-bottom: 8px;
+}
+
+.skeleton-text-short {
+  height: 16px;
+  width: 40%;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Smooth loading transition */
+.loading-fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== SEARCH HIGHLIGHT IMPROVEMENTS ===== */
+mark {
+  background: linear-gradient(120deg, #ffe9b5 0%, #ffd93d 100%) !important;
+  padding: 2px 4px !important;
+  border-radius: 4px !important;
+  color: #1a2f29 !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}

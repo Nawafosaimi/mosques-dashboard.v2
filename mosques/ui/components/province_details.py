@@ -220,7 +220,8 @@ def render_province_details(
             render_kpi_card(
                 title=f"عدد المساجد في {ar_province}",
                 value=f"{total_mosques:,}",
-                delta_html=mosques_delta_html
+                delta_html=mosques_delta_html,
+                tooltip="إجمالي عدد المساجد المسجلة في هذه المنطقة"
             )
 
         with k2:
@@ -232,14 +233,16 @@ def render_province_details(
                 title=kpi_title,
                 value=f"{violations_count:,}",
                 delta_html=violations_delta_html,
-                value_color_class="red"
+                value_color_class="red",
+                tooltip="المساجد المتاجاوزة خلال الربع"
             )
 
         with k3:
             render_kpi_card(
                 title="تمت زيارتهم",
                 value=f"{visit_stats['total_visited']:,}",
-                delta_html=f"<div class='delta neutral'>من أصل {violations_count:,} مسجد</div>"
+                delta_html=f"<div class='delta neutral'>من  {violations_count:,} مسجد</div>",
+                tooltip="عدد المساجد المتجاوزة التي تمت زيارتها ميدانياً"
             )
 
     # Prepare display dataframe
@@ -301,8 +304,6 @@ def render_province_details(
     
     # Remove old columns if they exist (cleanup)
     display = display.drop(columns=["تمت الزيارة", "تاريخ الزيارة"], errors="ignore")
-
-    display = localize_booleans(display)
 
     display = localize_booleans(display)
 
@@ -377,9 +378,9 @@ def render_province_details(
     # Sheet filter state setup
     st.session_state.setdefault("detail_sheet_filter", "الكل")
 
-    # All controls in one row: title, search, sort, filters, pagination, and export
+    # All controls in one row: title, search, sort, filters, and export (pagination moved to bottom)
     st.markdown('<div data-table-controls="province-filters">', unsafe_allow_html=True)
-    title_col, search_col, sort_col, order_col, sheet_col, gov_col, period_col, visit_col, rows_col, page_col, export_col = st.columns([1.3, 0.9, 0.8, 0.7, 0.7, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5])
+    title_col, search_col, sort_col, order_col, sheet_col, gov_col, period_col, visit_col, export_col = st.columns([1.3, 0.9, 0.8, 0.7, 0.7, 0.8, 0.7, 0.7, 0.5])
 
     with title_col:
         # We will update this later with the filtered count
@@ -524,26 +525,37 @@ def render_province_details(
         )
 
 
-    with rows_col:
-        _control_label("عدد الصفوف")
-        rows_per_page = st.selectbox(
-            "صفوف في الصفحة",
-            [10, 25, 50, 100],
-            key="detail_rows_per_page",
-            label_visibility="collapsed",
-        )
-    
-    with page_col:
-        _control_label("رقم الصفحة")
-        # Placeholder for page selector - will be populated after filtering
-        page_placeholder = st.empty()
-    
     with export_col:
         _control_label("‎ ")
         # Placeholder for export - will export filtered data
         export_placeholder = st.empty()
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # Check if any filters are active (for the reset link)
+    has_active_filters = (
+        (search_query and search_query.strip()) or
+        st.session_state.get("detail_sheet_filter", "الكل") != "الكل" or
+        st.session_state.get("detail_governorate", "الكل") != "الكل" or
+        st.session_state.get("detail_period", "الكل") != "الكل" or
+        st.session_state.get("detail_visit_status", "الكل") != "الكل"
+    )
+    
+    # Show subtle reset link below filters when active
+    if has_active_filters:
+        reset_col1, reset_col2, reset_col3 = st.columns([6, 2, 6])
+        with reset_col2:
+            if st.button("إعادة تعيين الفلاتر", key="reset_filters_link", type="tertiary"):
+                st.session_state.detail_search = ""
+                st.session_state.detail_sheet_filter = "الكل"
+                st.session_state.detail_governorate = "الكل"
+                st.session_state.detail_period = "الكل"
+                st.session_state.detail_visit_status = "الكل"
+                st.session_state.detail_page_idx = 0
+                st.rerun()
+    
+    # Rows per page value - use session state default
+    rows_per_page = st.session_state.get("detail_rows_per_page", 50)
 
     # Apply filters - use deep copy to prevent modification of original data
     df_filtered = display.copy(deep=True)
@@ -597,23 +609,6 @@ def render_province_details(
     if st.session_state.detail_page_idx < 0:
         st.session_state.detail_page_idx = 0
 
-    # Populate the page selector - use a callback to handle changes
-    def _on_page_select():
-        """Callback when page dropdown changes"""
-        if "detail_page_select_value" in st.session_state:
-            st.session_state.detail_page_idx = st.session_state.detail_page_select_value - 1
-    
-    with page_placeholder.container():
-        page_options = list(range(1, total_pages + 1))
-        st.selectbox(
-            "صفحة",
-            options=page_options,
-            index=st.session_state.detail_page_idx,
-            label_visibility="collapsed",
-            key="detail_page_select_value",
-            on_change=_on_page_select,
-        )
-
 
     # Use session state values for sorting
     sort_column = st.session_state.detail_sort_column
@@ -665,14 +660,18 @@ def render_province_details(
             export_df["الموقع"] = export_df["الموقع"].apply(
                 lambda x: f'=HYPERLINK("{x}", "رابط الموقع")' if isinstance(x, str) and x.strip() else ""
             )
-            
+        
+        # Generate timestamp for filename
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        
         export_bytes = io.BytesIO()
         export_df.to_csv(export_bytes, index=False, encoding="utf-8-sig")
         export_bytes.seek(0)
         st.download_button(
             " تصدير",
             data=export_bytes,
-            file_name=f"{ar_province}_{selected_quarter}_filtered.csv",
+            file_name=f"{ar_province}_{selected_quarter}_{timestamp}.csv",
             mime="text/csv",
             use_container_width=True,
             key="export_filtered_data",
@@ -841,31 +840,67 @@ def render_province_details(
     
     components.html(resize_html, height=0)
 
-    # Navigation buttons below table - centered layout with indicator
+    # Compact pagination info bar
     current_page = st.session_state.detail_page_idx
+    start_row = current_page * rows_per_page + 1
+    end_row = min((current_page + 1) * rows_per_page, total_rows)
     prev_disabled = current_page <= 0
     next_disabled = current_page >= total_pages - 1
     
-    # Layout: [Spacer, Next Button, Page Indicator, Previous Button, Spacer]
-    _, next_col, ind_col, prev_col, _ = st.columns([5, 1.2, 1.5, 1.2, 5])
-
-    with next_col:
-        if st.button("التالي", disabled=next_disabled, use_container_width=True, key="detail_next_page"):
-            if st.session_state.detail_page_idx < total_pages - 1:
-                st.session_state.detail_page_idx += 1
-                st.rerun()
-
-    with ind_col:
+    # Single compact row with all pagination info
+    _, info_col, rows_select_col, nav_col, _ = st.columns([2, 3, 2, 2, 2])
+    
+    with info_col:
         st.markdown(
-            f"<div style='text-align: center; padding-top: 10px; font-weight: 700; color: #2b5d4a; font-size: 14px;'>"
-            f"صفحة {current_page + 1} من {total_pages}"
-            "</div>",
+            f"""<div style='
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                height: 40px;
+                font-size: 14px;
+                color: #2b5d4a;
+                font-weight: 500;
+            '>
+                عرض {start_row:,}-{end_row:,} من {total_rows:,} صف
+            </div>""",
             unsafe_allow_html=True
         )
-
-    with prev_col:
-        if st.button(" السابق", disabled=prev_disabled, use_container_width=True, key="detail_prev_page"):
-            if st.session_state.detail_page_idx > 0:
+    
+    with rows_select_col:
+        # Inline rows per page selector
+        r1, r2 = st.columns([1, 1.2])
+        with r1:
+            st.markdown(
+                "<div style='display:flex;align-items:center;height:40px;justify-content:flex-end;font-size:13px;color:#666;'>صفوف في الصفحة:</div>",
+                unsafe_allow_html=True
+            )
+        with r2:
+            new_rows = st.selectbox(
+                "صفوف",
+                [10, 25, 50, 100],
+                index=[10, 25, 50, 100].index(st.session_state.get("detail_rows_per_page", 50)),
+                key="_detail_rows_compact",
+                label_visibility="collapsed",
+            )
+            if new_rows != st.session_state.get("detail_rows_per_page", 50):
+                st.session_state.detail_rows_per_page = new_rows
+                st.session_state.detail_page_idx = 0
+                st.rerun()
+    
+    with nav_col:
+        # Navigation arrows with page indicator
+        n1, n2, n3 = st.columns([1, 1.5, 1])
+        with n1:
+            if st.button("▶", disabled=next_disabled, key="detail_next_compact", help="الصفحة التالية"):
+                st.session_state.detail_page_idx += 1
+                st.rerun()
+        with n2:
+            st.markdown(
+                f"<div style='text-align:center;line-height:40px;font-size:13px;color:#2b5d4a;'>{current_page + 1} / {total_pages}</div>",
+                unsafe_allow_html=True
+            )
+        with n3:
+            if st.button("◀", disabled=prev_disabled, key="detail_prev_compact", help="الصفحة السابقة"):
                 st.session_state.detail_page_idx -= 1
                 st.rerun()
 
