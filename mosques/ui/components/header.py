@@ -94,7 +94,7 @@ def render_header() -> None:
             .ministry-logo-link {{
                 position: fixed;
                 top: 8px;
-                left: 20px; /* Moved to far left */
+                left: 150px !important; /* Shifted to the right */
                 z-index: 999999;
                 display: block;
                 width: 140px; /* Reduced from 200px */
@@ -260,7 +260,7 @@ def render_header() -> None:
             /* Responsive: Mobile - adjust logo */
             @media (max-width: 768px) {{
                 .ministry-logo-link {{
-                    left: 10px !important;
+                    left: 25px !important;
                     width: 120px !important;
                     height: 35px !important;
                 }}

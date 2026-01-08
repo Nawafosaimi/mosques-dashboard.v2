@@ -31,6 +31,18 @@ def apply_light_theme(fig):
     return fig
 
 
+def normalize_id(val) -> str:
+    """Robustly normalize Meter IDs to strings, stripping .0 and whitespace."""
+    if val is None or pd.isna(val):
+        return ""
+    # Convert to string and strip whitespace
+    s = str(val).strip()
+    # Remove trailing .0 which often happens when Excel reads IDs as floats
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
+
+
 def render_plotly_chart(fig, *, width_mode: str = "stretch", **kwargs):
     """Render Plotly chart with forward/backward compatibility for width settings."""
     apply_light_theme(fig)

@@ -30,6 +30,8 @@ def render_province_details(
 
     ar_province = regions.loc[regions["province_en"] == province_param, "name_ar"].iloc[0]
 
+    ar_province = regions.loc[regions["province_en"] == province_param, "name_ar"].iloc[0]
+
     # Render header with ministry logo
     render_header()
 
@@ -532,27 +534,35 @@ def render_province_details(
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Check if any filters are active (for the reset link)
-    has_active_filters = (
-        (search_query and search_query.strip()) or
-        st.session_state.get("detail_sheet_filter", "الكل") != "الكل" or
-        st.session_state.get("detail_governorate", "الكل") != "الكل" or
-        st.session_state.get("detail_period", "الكل") != "الكل" or
-        st.session_state.get("detail_visit_status", "الكل") != "الكل"
-    )
-    
-    # Show subtle reset link below filters when active
-    if has_active_filters:
-        reset_col1, reset_col2, reset_col3 = st.columns([6, 2, 6])
-        with reset_col2:
-            if st.button("إعادة تعيين الفلاتر", key="reset_filters_link", type="tertiary"):
-                st.session_state.detail_search = ""
-                st.session_state.detail_sheet_filter = "الكل"
-                st.session_state.detail_governorate = "الكل"
-                st.session_state.detail_period = "الكل"
-                st.session_state.detail_visit_status = "الكل"
-                st.session_state.detail_page_idx = 0
-                st.rerun()
+    # --- NEW: Floating HUD Pill Logic (Fast & Native) ---
+    active_filters_count = 0
+    if search_query and search_query.strip():
+        active_filters_count += 1
+    if st.session_state.get("detail_sheet_filter", "الكل") != "الكل":
+        active_filters_count += 1
+    if st.session_state.get("detail_governorate", "الكل") != "الكل":
+        active_filters_count += 1
+    if st.session_state.get("detail_period", "الكل") != "الكل":
+        active_filters_count += 1
+    if st.session_state.get("detail_visit_status", "الكل") != "الكل":
+        active_filters_count += 1
+
+    if active_filters_count > 0:
+        def reset_filters_native():
+            st.session_state.detail_search = ""
+            st.session_state.detail_sheet_filter = "الكل"
+            st.session_state.detail_governorate = "الكل"
+            st.session_state.detail_period = "الكل"
+            st.session_state.detail_visit_status = "الكل"
+            st.session_state.detail_page_idx = 0
+            
+        # We render a button with a unique label structure for CSS targeting
+        # Format: (Count) | فلاتر نشطة | مسح الكل ✕
+        st.button(
+            f"{active_filters_count} | فلاتر نشطة | مسح الكل ✕", 
+            key="hud_pill_native_btn", 
+            on_click=reset_filters_native
+        )
     
     # Rows per page value - use session state default
     rows_per_page = st.session_state.get("detail_rows_per_page", 50)
@@ -847,61 +857,66 @@ def render_province_details(
     prev_disabled = current_page <= 0
     next_disabled = current_page >= total_pages - 1
     
-    # Single compact row with all pagination info
-    _, info_col, rows_select_col, nav_col, _ = st.columns([2, 3, 2, 2, 2])
+    # Tightened centered pagination row
+    _, content_col, _ = st.columns([2.5, 5, 2.5])
     
-    with info_col:
-        st.markdown(
-            f"""<div style='
-                display: flex;
-                align-items: center;
-                justify-content: flex-end;
-                height: 40px;
-                font-size: 14px;
-                color: #2b5d4a;
-                font-weight: 500;
-            '>
-                عرض {start_row:,}-{end_row:,} من {total_rows:,} صف
-            </div>""",
-            unsafe_allow_html=True
-        )
-    
-    with rows_select_col:
-        # Inline rows per page selector
-        r1, r2 = st.columns([1, 1.2])
-        with r1:
+    with content_col:
+        # Tighter internal row for all controls - adjusted for row selector space
+        c1, c2, c3 = st.columns([3.2, 2.8, 4], gap="small")
+        
+        with c1:
             st.markdown(
-                "<div style='display:flex;align-items:center;height:40px;justify-content:flex-end;font-size:13px;color:#666;'>صفوف في الصفحة:</div>",
+                f"""<div style='
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-end;
+                    height: 40px;
+                    font-size: 14px;
+                    color: #2b5d4a;
+                    font-weight: 500;
+                    margin-left: 10px;
+                '>
+                    عرض {start_row:,}-{end_row:,} من {total_rows:,}
+                </div>""",
                 unsafe_allow_html=True
             )
-        with r2:
-            new_rows = st.selectbox(
-                "صفوف",
-                [10, 25, 50, 100],
-                index=[10, 25, 50, 100].index(st.session_state.get("detail_rows_per_page", 50)),
-                key="_detail_rows_compact",
-                label_visibility="collapsed",
-            )
-            if new_rows != st.session_state.get("detail_rows_per_page", 50):
-                st.session_state.detail_rows_per_page = new_rows
-                st.session_state.detail_page_idx = 0
-                st.rerun()
-    
-    with nav_col:
-        # Navigation arrows with page indicator
-        n1, n2, n3 = st.columns([1, 1.5, 1])
-        with n1:
-            if st.button("▶", disabled=next_disabled, key="detail_next_compact", help="الصفحة التالية"):
-                st.session_state.detail_page_idx += 1
-                st.rerun()
-        with n2:
-            st.markdown(
-                f"<div style='text-align:center;line-height:40px;font-size:13px;color:#2b5d4a;'>{current_page + 1} / {total_pages}</div>",
-                unsafe_allow_html=True
-            )
-        with n3:
-            if st.button("◀", disabled=prev_disabled, key="detail_prev_compact", help="الصفحة السابقة"):
-                st.session_state.detail_page_idx -= 1
-                st.rerun()
+        
+        with c2:
+            # Inline rows per page selector - add a little more space for r2
+            r1, r2 = st.columns([0.7, 1.3], gap="small") 
+            with r1:
+                st.markdown(
+                    "<div style='display:flex;align-items:center;height:40px;justify-content:flex-end;font-size:13px;color:#666;'>صف:</div>",
+                    unsafe_allow_html=True
+                )
+            with r2:
+                new_rows = st.selectbox(
+                    "صفوف",
+                    [10, 25, 50, 100],
+                    index=[10, 25, 50, 100].index(st.session_state.get("detail_rows_per_page", 50)),
+                    key="_detail_rows_compact",
+                    label_visibility="collapsed",
+                )
+                if new_rows != st.session_state.get("detail_rows_per_page", 50):
+                    st.session_state.detail_rows_per_page = new_rows
+                    st.session_state.detail_page_idx = 0
+                    st.rerun()
+        
+        with c3:
+            # Navigation group with a very little gap
+            n1, n2, n3 = st.columns([1, 0.6, 1], gap="small")
+            with n1:
+                if st.button("التالي", disabled=next_disabled, key="detail_next_compact"):
+                    st.session_state.detail_page_idx += 1
+                    st.rerun()
+            with n2:
+                st.markdown(
+                    f"<div style='text-align:center;line-height:40px;font-size:13px;color:#2b5d4a;white-space:nowrap;font-weight:600;'>{current_page + 1} / {total_pages}</div>",
+                    unsafe_allow_html=True
+                )
+            with n3:
+                if st.button("السابق", disabled=prev_disabled, key="detail_prev_compact"):
+                    st.session_state.detail_page_idx -= 1
+                    st.rerun()
 
     st.stop()

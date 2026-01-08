@@ -802,6 +802,58 @@ div[data-testid="stNumberInput"]>div {
   box-shadow: none;
 }
 
+/* --- Native Floating HUD Pill (No-Refresh Reset) --- */
+/* Target the specific Streamlit button container by its content */
+div[data-testid="stButton"]:has(button p:contains("| فلاتر نشطة |")) {
+  position: fixed !important;
+  bottom: 40px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 999999 !important;
+}
+
+div[data-testid="stButton"]:has(button p:contains("| فلاتر نشطة |")) button {
+  background: rgba(255, 253, 249, 0.85) !important;
+  backdrop-filter: blur(12px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+  border: 1px solid rgba(225, 217, 198, 0.6) !important;
+  border-radius: 50px !important;
+  padding: 10px 24px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15) !important;
+  min-height: auto !important;
+  width: auto !important;
+  color: #2b5d4a !important;
+  font-family: 'Tajawal', sans-serif !important;
+  animation: hud-pill-slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+div[data-testid="stButton"]:has(button p:contains("| فلاتر نشطة |")) button p {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
+  direction: rtl !important;
+}
+
+/* Add hover effect to the native button pill */
+div[data-testid="stButton"]:has(button p:contains("| فلاتر نشطة |")) button:hover {
+  border-color: #0B9444 !important;
+  box-shadow: 0 12px 50px rgba(11, 148, 68, 0.2) !important;
+  transform: scale(1.02) !important;
+}
+
+@keyframes hud-pill-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .tbl-scroll {
   max-height: 720px;
   overflow: auto;
@@ -1084,6 +1136,7 @@ button[kind="secondary"] {
   font-family: 'Tajawal', sans-serif !important;
   font-size: 15px !important;
   font-weight: 500 !important;
+  white-space: nowrap !important;
   transition: all 0.2s ease !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
 }
@@ -1372,7 +1425,7 @@ header[data-testid="stHeader"] {
 
   /* Header logo */
   .ministry-logo-link {
-    right: 55% !important;
+    left: 70px !important;
     width: 200px !important;
     height: 55px !important;
   }
@@ -1725,4 +1778,198 @@ mark {
   color: #1a2f29 !important;
   font-weight: 600 !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* --- Layout Containers (Universal) --- */
+.kpi-flex-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  justify-content: flex-start !important;
+}
+
+.kpi-flex-row .kpi-card {
+  flex: 1 1 300px !important;
+  /* Larger base for desktop */
+  min-width: 250px !important;
+  max-width: 450px !important;
+}
+
+.nav-buttons-container [data-testid="stHorizontalBlock"] {
+  flex-direction: row-reverse !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+.filter-section-container {
+  background: #fdfcf8;
+  padding: 15px;
+  border-radius: 12px;
+  border: 1px solid #e1d9c6;
+  margin-top: 10px;
+}
+
+/* =======================================================
+   RESPONSIVE DESIGN (PHONES & TABLETS)
+   ======================================================= */
+
+@media (max-width: 1200px) {
+
+  /* 1. Global Container Adjustments */
+  .main .block-container {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-top: 2rem !important;
+  }
+
+  /* 2. Force Streamlit Columns to Stack Vertically early for tablets */
+  [data-testid="column"] {
+    width: 100% !important;
+    flex-basis: 100% !important;
+    min-width: 100% !important;
+    margin-bottom: 20px !important;
+  }
+
+  .kpi-filter-parent-container [data-testid="column"] {
+    margin-bottom: 0 !important;
+  }
+
+  .kpi-flex-row .kpi-card {
+    flex: 1 1 200px !important;
+    min-width: 180px !important;
+    max-width: 400px !important;
+  }
+
+  /* Prevent nav buttons from stacking 100% wide on tablets */
+  .nav-buttons-container [data-testid="column"] {
+    width: auto !important;
+    flex-basis: auto !important;
+    min-width: auto !important;
+    margin-bottom: 0 !important;
+    margin-left: 10px !important;
+  }
+
+  .nav-buttons-container [data-testid="stHorizontalBlock"] {
+    flex-direction: row-reverse !important;
+    /* Keep buttons on the right */
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  /* 3. Scale Down Large Headers */
+  h1 {
+    font-size: 1.8rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  h2 {
+    font-size: 1.5rem !important;
+  }
+
+  h3 {
+    font-size: 1.3rem !important;
+  }
+
+  h4 {
+    font-size: 1.3rem !important;
+    font-weight: 700 !important;
+    margin-top: 15px !important;
+  }
+
+  /* 4. KPI Card Optimizations - No Overlap */
+  .kpi-card {
+    min-height: auto !important;
+    padding: 16px !important;
+    margin-bottom: 12px !important;
+    flex: 1 1 300px !important;
+    /* Allow wrapping */
+  }
+
+  .kpi-value {
+    font-size: 24px !important;
+  }
+
+  /* 5. HUD Pill (Mobile Tweaks) */
+  div[data-testid="stButton"]:has(button p:contains("| فلاتر نشطة |")) {
+    bottom: 20px !important;
+    width: 90% !important;
+  }
+
+  div[data-testid="stButton"]:has(button p:contains("| فلاتر نشطة |")) button {
+    width: 100% !important;
+    padding: 12px 15px !important;
+  }
+
+  /* 6. Table Mobile UX */
+  .tbl-scroll {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  .nice-table th,
+  .nice-table td {
+    padding: 12px 10px !important;
+    font-size: 14px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Indicators for horizontal scroll */
+  .tbl-scroll::after {
+    content: "← اسحب لليمين لرؤية المزيد →";
+    display: block;
+    text-align: center;
+    font-size: 11px;
+    color: #8a7a63;
+    padding: 10px 0;
+    font-weight: 500;
+  }
+
+  /* 7. Filter & Search Inputs */
+  div[data-testid="stTextInput"] input,
+  div[data-testid="stSelectbox"] div[data-baseweb="select"] {
+    height: 48px !important;
+    /* Larger touch target */
+  }
+
+  .filter-label {
+    font-size: 13px !important;
+  }
+
+  /* 8. Hide non-essential desktop elements */
+  .contact-header-btn {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+  }
+
+  /* 9. Pagination Button Fix (Prevent Vertical Stretching) */
+  div[data-testid="stHorizontalBlock"]:has(button[key*="compact"]) {
+    min-height: auto !important;
+    height: auto !important;
+    align-items: center !important;
+  }
+
+  div[data-testid="stHorizontalBlock"]:has(button[key*="compact"]) button {
+    height: 38px !important;
+    min-height: 38px !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+
+  /* Ultra-small phone tweaks */
+  .kpi-value {
+    font-size: 20px !important;
+  }
+
+  .ministry-logo-link {
+    width: 100px !important;
+    left: 20px !important;
+  }
 }

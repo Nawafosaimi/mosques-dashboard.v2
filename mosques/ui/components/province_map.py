@@ -8,9 +8,10 @@ from streamlit_folium import st_folium
 import json
 
 import config
-from data import find_coord_cols, load_visits_data, get_visit_status
+from data import find_coord_cols, load_visits_data, get_visit_status, normalize_id
 from domain import simplify_geom
 from .header import render_header
+from folium.plugins import FastMarkerCluster
 
 
 
@@ -19,148 +20,154 @@ from .header import render_header
 def _get_province_geometry(_regions, province_param: str):
     """Cache province geometry and centroid calculation."""
     try:
-        province_geom = _regions[_regions["province_en"] == province_param].iloc[0].geometry
-        province_geom_s = simplify_geom(province_geom, tolerance=0.02)
-        return {
-            "geometry": province_geom_s,
-            "center_lat": province_geom_s.centroid.y,
-            "center_lon": province_geom_s.centroid.x,
-        }
+        # Robust lookup: normalize case and strip whitespace
+        p_param_clean = str(province_param).strip().upper()
+        match = _regions[_regions["province_en"].fillna("").str.upper().str.strip() == p_param_clean]
+        
+        if not match.empty:
+            province_geom = match.iloc[0].geometry
+            province_geom_s = simplify_geom(province_geom, tolerance=0.02)
+            return {
+                "geometry": province_geom_s,
+                "center_lat": province_geom_s.centroid.y,
+                "center_lon": province_geom_s.centroid.x,
+            }
+        return None
     except Exception:
         return None
 
 
 @st.cache_data
-def _prepare_violator_data(
-    _all_violator_data: dict,
+def _get_map_payload(
+    _metadata: pd.DataFrame,
+    _quarter_violator_data: pd.DataFrame,
+    _visits_df: pd.DataFrame,
     quarter: str,
     province_param: str,
-    _metadata: pd.DataFrame,
+    view_mode: str,
+    all_label: str,
 ):
-    """Cache the expensive data filtering and preparation."""
-    # Get quarter data
-    if quarter == "كل الأرباع":
-        table_q = pd.concat(_all_violator_data.values(), ignore_index=True)
-    else:
-        table_q = _all_violator_data.get(quarter, pd.DataFrame()).copy()
+    """
+    Consolidated, high-performance data pipeline for the map.
+    Ensures the total mosque count for the province remains consistent.
+    """
+    # 1. Filter metadata for province - vectorized (Master List)
+    p_param_clean = str(province_param).strip()
+    p_mask = _metadata["Province"].astype(str).str.strip() == p_param_clean
+    province_metadata = _metadata[p_mask].copy()
     
-    if table_q.empty or "رقم العداد" not in table_q.columns:
+    # Coordinates are essential
+    lon_col, lat_col = find_coord_cols(province_metadata)
+    if not lon_col or not lat_col:
         return None
-    
-    # Filter by province
-    allowed_meters = set(
-        _metadata[_metadata["Province"] == province_param]["METER_ID_STR"].astype(str).unique()
-    ) if "Province" in _metadata.columns else set()
-    
-    temp = table_q.copy()
-    temp["رقم العداد"] = temp["رقم العداد"].astype(str)
-    violator_meters = temp[temp["رقم العداد"].isin(allowed_meters)]["رقم العداد"].unique()
-    
-    # Get governorate mapping
+
+    # 2. Identify Violators within this province for the selected quarter
+    violator_meters = set()
     governorate_map = {}
-    if "المحافظة" in temp.columns:
-        gov_data = temp[temp["رقم العداد"].isin(allowed_meters)].copy()
-        grouped_gov = gov_data.dropna(subset=["المحافظة"]).groupby("رقم العداد")["المحافظة"].first()
-        governorate_map = {str(k): str(v) for k, v in grouped_gov.items()}
     
-    return {
-        "violator_meters": violator_meters,
-        "governorate_map": governorate_map,
-    }
-
-
-@st.cache_data
-def _prepare_map_markers_data(
-    _mosque_df: pd.DataFrame,
-    _visits_df: pd.DataFrame,
-    governorate_map: dict,
-    sel_q_map: str,
-    lat_col: str,
-    lon_col: str,
-    all_label: str
-):
-    """
-    Vectorized preparation of map marker data.
-    Returns a list of lists: [lat, lon, name, meter_id, governorate, marker_color, visit_status, visit_date, causes, violation_type]
-    """
-    if _mosque_df.empty:
-        return []
-
-    # Prepare base dataframe
-    df = _mosque_df.copy()
-    
-    # Ensure meter IDs are strings and stripped for matching
-    df["METER_ID_STR"] = df["METER_ID_STR"].astype(str).str.strip()
-    
-    # Prepare visits dataframe for merge
-    v_df = _visits_df.copy()
-    if not v_df.empty and "رقم عداد الكهرباء" in v_df.columns:
-        v_df["meter_id_match"] = v_df["رقم عداد الكهرباء"].astype(str).str.strip()
-        v_df = v_df.drop_duplicates(subset=["meter_id_match"])
+    table_q = _quarter_violator_data
+    if not table_q.empty and "رقم العداد" in table_q.columns:
+        # Note: METER_ID_STR in metadata is already normalized by normalize_id in loaders.py
+        allowed_meters = set(province_metadata["METER_ID_STR"].unique())
         
-        merged = pd.merge(
-            df, 
-            v_df[['meter_id_match', 'التاريخ الميلادي (تقريبي)', 'الإجراء المتخذ', 'المسببات', 'نوع المخالفة']], 
-            left_on="METER_ID_STR", 
-            right_on="meter_id_match", 
-            how="left"
-        )
-    else:
-        merged = df.copy()
-        merged["meter_id_match"] = None
-        merged["التاريخ الميلادي (تقريبي)"] = None
-        merged["الإجراء المتخذ"] = None
-        merged["المسببات"] = None
-        merged["نوع المخالفة"] = None
+        # Strip/clean local copy of quarterly data
+        # Use a copy to avoid in-place modification of cached data
+        temp_q = table_q.copy()
+        temp_q["رقم العداد"] = temp_q["رقم العداد"].apply(normalize_id)
+        
+        violator_in_prov = temp_q[temp_q["رقم العداد"].isin(allowed_meters)]
+        violator_meters = set(violator_in_prov["رقم العداد"].unique())
+        
+        # Prepare governorate map from violator data if available
+        if "المحافظة" in violator_in_prov.columns:
+            grouped = violator_in_prov.dropna(subset=["المحافظة"]).drop_duplicates("رقم العداد")
+            governorate_map = dict(zip(grouped["رقم العداد"], grouped["المحافظة"]))
 
-    # Default values
-    merged["marker_color"] = "red"
-    merged["visit_status_display"] = "لم تتم الزيارة"
-    merged["visit_date_display"] = ""
-    merged["causes_display"] = ""
-    merged["violation_display"] = ""
+    # 3. Partition Master List into Violators and Non-Violators
+    violator_mask = province_metadata["METER_ID_STR"].isin(violator_meters)
+    violator_master_df = province_metadata[violator_mask].copy()
+    non_violator_master_df = province_metadata[~violator_mask].copy()
 
-    visited_mask = merged["meter_id_match"].notna()
+    # Process Violators (With Visits Merge)
+    v_payload = []
+    if not violator_master_df.empty:
+        violator_master_df = violator_master_df.dropna(subset=[lat_col, lon_col])
+        violator_master_df[lat_col] = violator_master_df[lat_col].astype(float).round(5)
+        violator_master_df[lon_col] = violator_master_df[lon_col].astype(float).round(5)
+        
+        v_visits = _visits_df.copy()
+        if not v_visits.empty and "رقم عداد الكهرباء" in v_visits.columns:
+            # Normalize v_visits key for reliable merging
+            v_visits["رقم عداد الكهرباء"] = v_visits["رقم عداد الكهرباء"].apply(normalize_id)
+            v_visits = v_visits.drop_duplicates(subset=["رقم عداد الكهرباء"])
+            merged_v = pd.merge(
+                violator_master_df, 
+                v_visits[['رقم عداد الكهرباء', 'التاريخ الميلادي (تقريبي)', 'الإجراء المتخذ', 'المسببات', 'نوع المخالفة']], 
+                left_on="METER_ID_STR", 
+                right_on="رقم عداد الكهرباء", 
+                how="left"
+            )
+        else:
+            merged_v = violator_master_df.copy()
+            for col in ['رقم عداد الكهرباء', 'التاريخ الميلادي (تقريبي)', 'الإجراء المتخذ', 'المسببات', 'نوع المخالفة']:
+                merged_v[col] = pd.NA
+
+        merged_v["marker_color"] = "R"
+        merged_v["visit_status_display"] = "UV"
+        merged_v["visit_date_display"] = ""
+        merged_v["causes_display"] = ""
+        merged_v["violation_display"] = ""
+
+        visited_mask = merged_v["رقم عداد الكهرباء"].notna()
+        if quarter != all_label and quarter in config.QUARTER_DATES:
+            q_start, q_end = config.QUARTER_DATES[quarter]
+            dt_temp = pd.to_datetime(merged_v["التاريخ الميلادي (تقريبي)"], dayfirst=True, errors='coerce')
+            visited_mask = visited_mask & (dt_temp >= q_start) & (dt_temp <= q_end)
+
+        if visited_mask.any():
+            merged_v.loc[visited_mask, "visit_date_display"] = merged_v.loc[visited_mask, "التاريخ الميلادي (تقريبي)"].fillna("")
+            merged_v.loc[visited_mask, "causes_display"] = merged_v.loc[visited_mask, "المسببات"].fillna("")
+            merged_v.loc[visited_mask, "violation_display"] = merged_v.loc[visited_mask, "نوع المخالفة"].fillna("")
+            action_col = merged_v.loc[visited_mask, "الإجراء المتخذ"].astype(str).fillna("")
+            merged_v.loc[visited_mask & action_col.str.contains("تمت المعالجة"), "marker_color"] = "G"
+            merged_v.loc[visited_mask & action_col.str.contains("تمت المعالجة"), "visit_status_display"] = "VV"
+            merged_v.loc[visited_mask & action_col.str.contains("تحت الإجراء"), "marker_color"] = "O"
+            merged_v.loc[visited_mask & action_col.str.contains("تحت الإجراء"), "visit_status_display"] = "PI"
+
+        merged_v["governorate_display"] = merged_v["METER_ID_STR"].map(governorate_map).fillna(merged_v["GOVERNORATE_NAME_AR"] if "GOVERNORATE_NAME_AR" in merged_v.columns else "").fillna("")
+        
+        v_payload = merged_v[[lat_col, lon_col, "Name", "METER_ID_STR", "governorate_display", "marker_color", "visit_status_display", "visit_date_display", "causes_display", "violation_display"]].values.tolist()
+
+    # If we only want violators, return now
+    if view_mode == "المتجاوزين فقط":
+        return v_payload
+
+    # Otherwise, also process Non-Violators (The rest of the master list)
+    nv_payload = []
+    if not non_violator_master_df.empty:
+        non_violator_master_df = non_violator_master_df.dropna(subset=[lat_col, lon_col])
+        non_violator_master_df[lat_col] = non_violator_master_df[lat_col].astype(float).round(5)
+        non_violator_master_df[lon_col] = non_violator_master_df[lon_col].astype(float).round(5)
+        
+        # Static fields for NV
+        non_violator_master_df["governorate_display"] = non_violator_master_df["GOVERNORATE_NAME_AR"] if "GOVERNORATE_NAME_AR" in non_violator_master_df.columns else ""
+        non_violator_master_df["marker_color"] = "GY"
+        non_violator_master_df["visit_status_display"] = "NV"
+        non_violator_master_df["visit_date_display"] = ""
+        non_violator_master_df["causes_display"] = ""
+        non_violator_master_df["violation_display"] = ""
+        
+        nv_payload = non_violator_master_df[[lat_col, lon_col, "Name", "METER_ID_STR", "governorate_display", "marker_color", "visit_status_display", "visit_date_display", "causes_display", "violation_display"]].values.tolist()
+
+    # Stable Sorting & Zero-Filtering:
+    # 1. Filter out (0,0) coordinates which represent missing data (off Africa coast)
+    # 2. Sort ensures deterministic clustering (Lat, Lon, ID)
+    final_payload = [x for x in (v_payload + nv_payload) if not (x[0] == 0.0 and x[1] == 0.0)]
     
-    if sel_q_map != all_label and sel_q_map in config.QUARTER_DATES:
-        q_start, q_end = config.QUARTER_DATES[sel_q_map]
-        merged["_dt_temp"] = pd.to_datetime(merged["التاريخ الميلادي (تقريبي)"], dayfirst=True, errors='coerce')
-        date_in_range = (merged["_dt_temp"] >= q_start) & (merged["_dt_temp"] <= q_end)
-        final_visited_mask = visited_mask & date_in_range
-    else:
-        final_visited_mask = visited_mask
-
-    if final_visited_mask.any():
-        merged.loc[final_visited_mask, "visit_date_display"] = merged.loc[final_visited_mask, "التاريخ الميلادي (تقريبي)"].fillna("")
-        merged.loc[final_visited_mask, "causes_display"] = merged.loc[final_visited_mask, "المسببات"].fillna("")
-        merged.loc[final_visited_mask, "violation_display"] = merged.loc[final_visited_mask, "نوع المخالفة"].fillna("")
-        
-        action_col = merged.loc[final_visited_mask, "الإجراء المتخذ"].astype(str).fillna("")
-        resolved_mask = action_col.str.contains("تمت المعالجة")
-        
-        merged.loc[final_visited_mask & (merged.index.isin(action_col[resolved_mask].index)), "marker_color"] = "green"
-        merged.loc[final_visited_mask & (merged.index.isin(action_col[resolved_mask].index)), "visit_status_display"] = "تمت الزيارة"
-        
-        pending_mask = ~resolved_mask
-        merged.loc[final_visited_mask & (merged.index.isin(action_col[pending_mask].index)), "marker_color"] = "orange"
-        merged.loc[final_visited_mask & (merged.index.isin(action_col[pending_mask].index)), "visit_status_display"] = "تحت الإجراء"
-
-    merged["governorate_display"] = merged["METER_ID_STR"].map(governorate_map).fillna("")
-
-    final_data = merged[[
-        lat_col, 
-        lon_col, 
-        "Name", 
-        "METER_ID_STR", 
-        "governorate_display", 
-        "marker_color", 
-        "visit_status_display", 
-        "visit_date_display", 
-        "causes_display", 
-        "violation_display"
-    ]].values.tolist()
+    # Sort by: Lat (0), Lon (1), Meter ID (3)
+    final_payload.sort(key=lambda x: (x[0], x[1], x[3]))
     
-    return final_data
+    return final_payload
 
 
 def render_province_map(
@@ -192,55 +199,156 @@ def render_province_map(
             unsafe_allow_html=True,
         )
 
-    with col_filter:
-        all_label = "كل الأرباع"
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+
+    # --- View Toggle & Quarter Selection ---
+    # --- View Toggle & Quarter Selection ---
+    st.markdown("""
+        <style>
+        .map-section-label {
+            text-align: center !important;
+            width: 100% !important;
+            margin: 0 auto 8px auto !important;
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #2b5d4a !important;
+            display: block !important;
+        }
+        /* Broad centering for Streamlit vertical blocks in these columns */
+        [data-testid="column"] [data-testid="stVerticalBlock"] {
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+        }
+        /* Radio group styling: centered and compact */
+        div[data-testid="stRadio"] > div[role="radiogroup"] {
+            justify-content: center !important;
+            display: flex !important;
+            width: 100% !important;
+            gap: 24px !important;
+            margin: 0 auto !important;
+        }
+        div[data-testid="stRadio"] label p {
+            color: #000000 !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
+        }
+        /* Selectbox styling: centered and fixed width */
+        div[data-testid="stSelectbox"] {
+            margin: 0 auto !important;
+            width: 100% !important;
+            max-width: 250px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Use a tighter 5-column layout to bring controls closer to the center
+    # [spacer, view_mode, middle_spacer, quarter, spacer]
+    # In RTL, these render from right-to-left
+    _, col_toggle, _mid, col_q, _ = st.columns([3, 3, 0.5, 8, 1], gap="large")
+    
+    with col_toggle:
+        st.markdown("<p class='map-section-label'>نطاق العرض</p>", unsafe_allow_html=True)
+        view_mode = st.radio(
+            "عرض المساجد",
+            ["المتجاوزين فقط", "جميع المساجد"],
+            index=0, 
+            horizontal=True, 
+            label_visibility="collapsed", 
+            key="p_map_vmode_v7"
+        )
+
+    all_label = "كل الأرباع"
+    with col_q:
+        st.markdown("<p class='map-section-label'>اختر الربع</p>", unsafe_allow_html=True)
+        
         opts = [all_label] + config.QUARTERS
         q_in_url = st.query_params.get("quarter", config.QUARTERS[0])
         q_idx = opts.index(q_in_url) if q_in_url in opts else 0
         
-        # Styled selectbox for quarter
-        st.markdown("<p class='filter-label'>اختر الربع </p>", unsafe_allow_html=True)
         sel_q_map = st.selectbox(
             "الربع",
             opts,
             index=q_idx,
             label_visibility="collapsed",
-            key="map_quarter",
+            key="p_map_qtr_v7",
         )
 
-    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+    # --- Legend ---
+    st.markdown("""
+        <style>
+        .map-legend {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 32px;
+            padding: 12px 24px;
+            background-color: #faf8f3;
+            border-radius: 12px;
+            margin: 16px auto;
+            max-width: fit-content;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e1d9c6;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-marker {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+        .legend-label {
+            font-family: 'Tajawal', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a2f29;
+        }
+        </style>
+        <div class="map-legend">
+            <div class="legend-item">
+                <div class="legend-marker" style="background-color: #808080;"></div>
+                <span class="legend-label">غير متجاوز</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-marker" style="background-color: #0B9444;"></div>
+                <span class="legend-label">متجاوز وتمت زيارته</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-marker" style="background-color: #dc3545;"></div>
+                <span class="legend-label">متجاوز ولم تتم زيارته</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # --- Data Preparation (CACHED) ---
-    prepared_data = _prepare_violator_data(all_violator_data, sel_q_map, province_param, metadata)
-    
-    if not prepared_data:
-        st.warning("لا توجد بيانات لعرض الخريطة.")
-        st.stop()
-    
-    violator_meters = prepared_data["violator_meters"]
-    governorate_map = prepared_data["governorate_map"]
-
-    lon_col, lat_col = find_coord_cols(metadata)
-    if not lon_col or not lat_col:
-        st.info("لا تتوفر إحداثيات X,Y لعرض الخريطة.")
-        st.stop()
-
-    # Get mosque data with coordinates
-    mosque_df = metadata[metadata["METER_ID_STR"].isin(violator_meters)].dropna(subset=[lat_col, lon_col]).copy()
-    
-    if mosque_df.empty:
-        st.info("لا توجد مواقع لعرضها.")
-        st.stop()
-
-    mosque_df[lat_col] = mosque_df[lat_col].astype(float)
-    mosque_df[lon_col] = mosque_df[lon_col].astype(float)
-    mosque_df["METER_ID_STR"] = mosque_df["METER_ID_STR"].astype(str)
-    mosque_df["Name"] = mosque_df["Name"].fillna("—")
-
-    # Load visits data for color coding
+    # --- Consolidated Data Preparation (CACHED - NO HASHING) ---
+    all_label = "كل الأرباع"
     visits_df = load_visits_data()
+    
+    # Pass only the relevant quarter's data to avoid hashing the whole dict
+    if sel_q_map == all_label:
+        quarter_violator_data = pd.concat(all_violator_data.values(), ignore_index=True)
+    else:
+        quarter_violator_data = all_violator_data.get(sel_q_map, pd.DataFrame())
 
-    # --- Map Center & Zoom (CACHED) ---
+    map_data = _get_map_payload(
+        metadata,
+        quarter_violator_data,
+        visits_df,
+        sel_q_map,
+        province_param,
+        view_mode,
+        all_label
+    )
+    
+    if not map_data:
+        st.warning("لا توجد بيانات للمتجاوزين")
+        st.stop()
+
+    # --- Map Center & Zoom (CACHED - NO HASHING) ---
     geom_data = _get_province_geometry(regions, province_param)
     
     if geom_data:
@@ -249,8 +357,17 @@ def render_province_map(
         province_geom_s = geom_data["geometry"]
         zoom_level = 6
     else:
-        center_lat = mosque_df[lat_col].mean()
-        center_lon = mosque_df[lon_col].mean()
+        # Fallback center: Mean of valid coordinates (centers on highest density cluster)
+        valid_coords = [p for p in map_data if not (p[0] == 0.0 and p[1] == 0.0)]
+        if valid_coords:
+            import numpy as np
+            lats = [p[0] for p in valid_coords]
+            lons = [p[1] for p in valid_coords]
+            center_lat = float(np.mean(lats))
+            center_lon = float(np.mean(lons))
+        else:
+            center_lat = 24.7136  # Ultimate fallback to Riyadh
+            center_lon = 46.6753
         zoom_level = 6
         province_geom_s = None
 
@@ -331,20 +448,7 @@ def render_province_map(
         ).add_to(m)
 
     # 2. Add Mosque Markers with FastMarkerCluster
-    from folium.plugins import FastMarkerCluster
 
-    # Use cached vectorized data preparation
-    map_data = _prepare_map_markers_data(
-        mosque_df,
-        visits_df,
-        governorate_map,
-        sel_q_map,
-        lat_col,
-        lon_col,
-        all_label
-    )
-
-    # Define JS callback to create markers with popups
     callback = f"""
     function (row) {{
         var lat = row[0];
@@ -352,8 +456,22 @@ def render_province_map(
         var name = row[2];
         var meter_id = row[3];
         var governorate = row[4] || "";
-        var marker_color = row[5] || "red";
-        var visit_status = row[6] || "لم تتم الزيارة";
+        
+        // Decoding Mapping
+        var color_map = {{'R': 'red', 'G': 'green', 'O': 'orange', 'GY': 'gray'}};
+        var status_map = {{
+            'NV': 'غير متجاوز',
+            'UV': 'متجاوز ولم تتم زيارته',
+            'VV': 'متجاوز وتمت زيارته',
+            'PI': 'تحت الإجراء'
+        }};
+        
+        var marker_color_code = row[5] || "R";
+        var visit_status_code = row[6] || "UV";
+        
+        var marker_color = color_map[marker_color_code] || 'red';
+        var visit_status = status_map[visit_status_code] || 'متجاوز ولم تتم زيارته';
+        
         var visit_date = row[7] || "";
         var causes = row[8] || "";
         var violation_type = row[9] || "";
@@ -361,7 +479,7 @@ def render_province_map(
         var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}";
         var google_maps_link = "https://www.google.com/maps/search/?api=1&query=" + lat + "," + lon;
         
-        var badge_color = marker_color === 'green' ? '#0B9444' : (marker_color === 'orange' ? '#ff8c00' : '#dc3545');
+        var badge_color = marker_color === 'green' ? '#0B9444' : (marker_color === 'orange' ? '#ff8c00' : (marker_color === 'gray' ? '#808080' : '#dc3545'));
         
         var visit_info_html = '';
         if (visit_date) {{
@@ -410,7 +528,7 @@ def render_province_map(
                     <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{governorate}}</span>
                 </div>
                 <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #8a7a63; font-size: 13px;">حالة الزيارة:</span>
+                    <span style="color: #8a7a63; font-size: 13px;">الحالة:</span>
                     <span style="
                         background-color: ${{badge_color}};
                         color: white;
@@ -488,6 +606,7 @@ def render_province_map(
     }}
     """
 
+    # Combined Cluster Layer (Fixes overlapping circles from image)
     FastMarkerCluster(
         data=map_data,
         callback=callback,
@@ -503,6 +622,7 @@ def render_province_map(
         height=700,
         returned_objects=[],
         debug=False,
+        key=f"map_{province_param}_{sel_q_map}_{view_mode}"
     )
 
-    st.stop()
+    return True

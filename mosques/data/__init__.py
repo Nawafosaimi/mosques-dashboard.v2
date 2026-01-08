@@ -9,6 +9,7 @@ from .loaders import (
     load_timeseries,
     precompute_helpers,
     find_coord_cols,
+    normalize_id,
 )
 from .visits_loader import (
     load_visits_data,

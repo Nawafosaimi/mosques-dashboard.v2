@@ -113,6 +113,19 @@ def render_meter_details(
                 if isinstance(prov, str) and prov.strip():
                     province_name = prov.strip()
 
+    # Fallback: Check master metadata for Arabic governorate name (GOVERNORATE_NAME_AR)
+    if province_name == "غير معروف" and not meta_row.empty:
+        # First try GOVERNORATE_NAME_AR which has Arabic names (same as map popup)
+        if "GOVERNORATE_NAME_AR" in meta_row.columns:
+            prov = meta_row.iloc[0].get("GOVERNORATE_NAME_AR")
+            if isinstance(prov, str) and prov.strip():
+                province_name = prov.strip()
+        # Fall back to Province column (English) if still unknown
+        if province_name == "غير معروف" and "Province" in meta_row.columns:
+            prov = meta_row.iloc[0].get("Province")
+            if isinstance(prov, str) and prov.strip():
+                province_name = prov.strip()
+
 
 
     # Get overall date range (First Quarter Start -> Last Quarter End)
@@ -139,7 +152,7 @@ def render_meter_details(
         causes = visit_info.get('causes', '') or 'لا توجد معلومات'
         violation_type = visit_info.get('violation_type', '') or 'غير محدد'
     else:
-        visit_status_html = "<span style='color: #c53030;'>لم تتم الزيارة ❌</span>"
+        visit_status_html = "<span style='color: #c53030;'>لم تتم الزيارة</span>"
         visit_date = "-"
         causes = "-"
         violation_type = "-"

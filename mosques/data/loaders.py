@@ -25,6 +25,18 @@ from config import (
 )
 
 
+def normalize_id(val) -> str:
+    """Robustly normalize Meter IDs to strings, stripping .0 and whitespace."""
+    if val is None or pd.isna(val):
+        return ""
+    # Convert to string and strip whitespace
+    s = str(val).strip()
+    # Remove trailing .0 which often happens when Excel reads IDs as floats
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
+
+
 class DataFileError(FileNotFoundError):
     """Raised when a required data file is missing."""
 
@@ -136,7 +148,7 @@ def load_timeseries(path: Path | str = TIMESERIES_FILE):
     return df
 
 
-@st.cache_data
+@st.cache_data(ttl=3600)  # Cache for 1 hour to prevent re-validation on idle reconnect
 def load_industry_meta(path: Path | str = INDUSTRY_META_FILE, meter_id: str | None = None):
     file_path = _ensure_file(Path(path), "Industry metadata parquet")
     
@@ -165,7 +177,11 @@ def load_industry_meta(path: Path | str = INDUSTRY_META_FILE, meter_id: str | No
              meta = meta[meta["Meter Number"].astype(str) == str(meter_id)]
 
     meta = meta.rename(columns={"Meter Number": "METER_ID"})
-    meta["METER_ID_STR"] = meta["METER_ID"].astype(str)
+    # Normalize and clean columns before use and caching
+    meta["METER_ID_STR"] = meta["METER_ID"].apply(normalize_id)
+    if "Province" in meta.columns:
+        meta["Province"] = meta["Province"].astype(str).str.strip()
+    
     lon_col, lat_col = find_coord_cols(meta)
     if lon_col and lat_col:
         meta[lon_col] = pd.to_numeric(meta[lon_col], errors="coerce")
@@ -209,7 +225,7 @@ def load_single_quarter_data(quarter: str, quarter_files: Dict[str, Path] = QUAR
     return df
 
 
-@st.cache_data
+@st.cache_data(ttl=3600)  # Cache for 1 hour to prevent re-validation on idle reconnect
 def load_all_violator_data(quarter_files: Dict[str, Path] = QUARTER_FILES, specific_quarters: list[str] | None = None, meter_id: str | None = None):
     """Load violator data for all quarters or specific quarters only.
     
@@ -379,6 +395,11 @@ def _load_quarter_excel(path: Path, quarter: str):
             sheet_df = pd.DataFrame(rows, columns=header)
             # Track which sheet this data came from using المحافظة
             sheet_df["المحافظة_الورقة"] = sheet_name
+            # Pre-clean critical columns
+            if "رقم العداد" in sheet_df.columns:
+                sheet_df["رقم العداد"] = sheet_df["رقم العداد"].apply(normalize_id)
+            if "المحافظة" in sheet_df.columns:
+                sheet_df["المحافظة"] = sheet_df["المحافظة"].astype(str).str.strip()
             dfs.append(sheet_df)
 
     if dfs:
@@ -397,6 +418,8 @@ def _load_quarter_3_special(wb, quarter: str, cache_path: Path):
     # Load morning period sheet
     morning_sheet = wb["الفترة الصباحية"]
     morning_df = _load_sheet_data(morning_sheet, "الفترة الصباحية")
+    if "رقم العداد" in morning_df.columns:
+        morning_df["رقم العداد"] = morning_df["رقم العداد"].apply(normalize_id)
     morning_df["الفترة صباحا/مساء"] = "صباحا"
     # Add evening violation column with NA for morning-only mosques
     morning_df["نسبة التجاوز في الفترة المسائية"] = pd.NA
@@ -404,6 +427,8 @@ def _load_quarter_3_special(wb, quarter: str, cache_path: Path):
     # Load evening period sheet
     evening_sheet = wb["الفترة المسائية"]
     evening_df = _load_sheet_data(evening_sheet, "الفترة المسائية")
+    if "رقم العداد" in evening_df.columns:
+        evening_df["رقم العداد"] = evening_df["رقم العداد"].apply(normalize_id)
     evening_df["الفترة صباحا/مساء"] = "مساء"
     # Add morning violation column with NA for evening-only mosques
     evening_df["نسبة التجاوز في الفترة الصباحية"] = pd.NA
