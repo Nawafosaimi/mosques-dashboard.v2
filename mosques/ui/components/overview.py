@@ -10,6 +10,7 @@ from streamlit_folium import st_folium
 
 import config
 from ui.utils import render_plotly_chart
+from i18n import t, get_quarter_name, get_month_name, is_english
 
 from .kpi_card import render_kpi_card
 from .header import render_header
@@ -52,11 +53,11 @@ def prepare_map_data(_regions, province_counts: pd.DataFrame):
 def render_regional_distribution_chart(metadata: pd.DataFrame, all_violator_data: dict):
     """Renders the regional distribution stacked bar chart with sorting and view options using Plotly."""
     if "Province" not in metadata.columns:
-        st.info("ملف Industry Code لا يحتوي على عمود 'Province'.")
+        st.info(t("no_data") if is_english() else "ملف Industry Code لا يحتوي على عمود 'Province'.")
         return
 
     # Header
-    st.markdown("### توزيع المساجد حسب المنطقة")
+    st.markdown(f"### {t('regional_distribution')}")
 
     # Data Preparation: Static (Sum of all quarters)
     total_counts = (
@@ -99,6 +100,9 @@ def render_regional_distribution_chart(metadata: pd.DataFrame, all_violator_data
     reverse_region_map = {v: k for k, v in config.REGION_NAME_MAP.items()}
     region_data["Province_AR"] = region_data["Province"].map(reverse_region_map).fillna(region_data["Province"])
     
+    # Select display column based on language
+    display_col = "Province" if is_english() else "Province_AR"
+    
     is_pct = False
     
     fig = go.Figure()
@@ -107,17 +111,22 @@ def render_regional_distribution_chart(metadata: pd.DataFrame, all_violator_data
     color_non_violator = "#2E8B57" # Green (Safe)
     color_violator = "#f1b622"     # Dark Gold (Violators)
     
-    # Hover template
+    # Hover template - translated
+    non_viol_label = t("non_violators")
+    viol_label = t("violators")
+    pct_label = "Percentage" if is_english() else "النسبة"
+    count_label = "Count" if is_english() else "العدد"
+    
     if is_pct:
-        hovertemplate_non = "<b>غير متجاوزين</b><br>النسبة: %{x:.1f}%<br>العدد: %{customdata:,}<extra></extra>"
-        hovertemplate_vio = "<b>متجاوزين</b><br>النسبة: %{x:.1f}%<br>العدد: %{customdata:,}<extra></extra>"
+        hovertemplate_non = f"<b>{non_viol_label}</b><br>{pct_label}: %{{x:.1f}}%<br>{count_label}: %{{customdata:,}}<extra></extra>"
+        hovertemplate_vio = f"<b>{viol_label}</b><br>{pct_label}: %{{x:.1f}}%<br>{count_label}: %{{customdata:,}}<extra></extra>"
         x_non = region_data["non_violator_pct"]
         x_vio = region_data["violator_pct"]
         cd_non = region_data["non_violators"]
         cd_vio = region_data["violators"]
     else:
-        hovertemplate_non = "<b>غير متجاوزين</b><br>العدد: %{x:,}<br>النسبة: %{customdata:.1f}%<extra></extra>"
-        hovertemplate_vio = "<b>متجاوزين</b><br>العدد: %{x:,}<br>النسبة: %{customdata:.1f}%<extra></extra>"
+        hovertemplate_non = f"<b>{non_viol_label}</b><br>{count_label}: %{{x:,}}<br>{pct_label}: %{{customdata:.1f}}%<extra></extra>"
+        hovertemplate_vio = f"<b>{viol_label}</b><br>{count_label}: %{{x:,}}<br>{pct_label}: %{{customdata:.1f}}%<extra></extra>"
         x_non = region_data["non_violators"]
         x_vio = region_data["violators"]
         cd_non = region_data["non_violator_pct"]
@@ -125,8 +134,8 @@ def render_regional_distribution_chart(metadata: pd.DataFrame, all_violator_data
 
     # Add Non-Violators (Green) - First in legend
     fig.add_trace(go.Bar(
-        name="غير متجاوزين",
-        y=region_data["Province_AR"],
+        name=t("non_violators"),
+        y=region_data[display_col],
         x=x_non,
         orientation="h",
         marker_color=color_non_violator,
@@ -137,8 +146,8 @@ def render_regional_distribution_chart(metadata: pd.DataFrame, all_violator_data
 
     # Add Violators (Gold)
     fig.add_trace(go.Bar(
-        name="متجاوزين",
-        y=region_data["Province_AR"],
+        name=t("violators"),
+        y=region_data[display_col],
         x=x_vio,
         orientation="h",
         marker_color=color_violator,
@@ -154,7 +163,7 @@ def render_regional_distribution_chart(metadata: pd.DataFrame, all_violator_data
         for _, row in region_data.iterrows():
             annotations.append(dict(
                 x=row["total"] + max_val * 0.02,
-                y=row["Province_AR"],
+                y=row[display_col],
                 text=f"{row['total']:,}",
                 showarrow=False,
                 font=dict(size=13, color="#000000", family="Tajawal"),
@@ -180,7 +189,7 @@ def render_regional_distribution_chart(metadata: pd.DataFrame, all_violator_data
             itemclick=False,
             itemdoubleclick=False
         ),
-        xaxis_title=f"<b>{'النسبة %' if is_pct else 'عدد المساجد'}</b>",
+        xaxis_title=f"<b>{t('percentage') if is_pct else t('num_mosques')}</b>",
         yaxis_title="",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
@@ -237,12 +246,13 @@ def render_overview(
         prefer_lower: bool = False,
     ) -> str:
         if previous_label is None or previous_count is None:
-            return "<div class='delta neutral'>أول فترة متاحة</div>"
+            return f"<div class='delta neutral'>{t('first_period')}</div>"
         if previous_count == 0:
-            return "<div class='delta neutral'>لا توجد بيانات للمقارنة</div>"
+            return f"<div class='delta neutral'>{t('no_comparison_data')}</div>"
         diff = current_count - previous_count
         if diff == 0:
-            return f"<div class='delta flat'>بدون تغيير مقارنة بـ {previous_label}</div>"
+            q_display = get_quarter_name(previous_label)
+            return f"<div class='delta flat'>{t('no_change', quarter=q_display)}</div>"
         pct = (diff / previous_count) * 100
         
         if diff > 0:
@@ -260,27 +270,26 @@ def render_overview(
         
         # Badge Style with Flexbox: Text [Right] | Badge [Left]
         badge_html = f"<span class='delta-badge {direction}'>{pct_text} {arrow}</span>"
-        text_html = f"<span>{diff_text} مقارنة بالربع السابق</span>"
+        text_html = f"<span>{diff_text} {t('compared_to_prev')}</span>"
         return f"<div class='delta {direction}'>{text_html}{badge_html}</div>"
 
     # Render header with ministry logo
     render_header()
 
     # Title at the top
-    st.markdown("<h1 style='text-align: center;'>لوحة متابعة المساجد</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center;'>{t('dashboard_title')}</h1>", unsafe_allow_html=True)
 
-    all_quarters_label = "كل الأرباع"
+    all_quarters_label = t("all_quarters")
     
-    # Robust deduplication: ensure all labels are unique and stripped
-    all_options = [all_quarters_label] + config.QUARTERS
-    quarter_options = []
-    seen = set()
-    for opt in all_options:
-        if not opt: continue
-        clean_opt = str(opt).strip()
-        if clean_opt and clean_opt not in seen:
-            quarter_options.append(clean_opt)
-            seen.add(clean_opt)
+    # Build display options with translated quarter names
+    # Map: display_name -> arabic_key (for data lookup)
+    quarter_display_to_key = {all_quarters_label: all_quarters_label}
+    for q in config.QUARTERS:
+        display_name = get_quarter_name(q)  # Translates to "Q4 2024" etc in English
+        quarter_display_to_key[display_name] = q
+    
+    # Display options (translated names)
+    quarter_display_options = [all_quarters_label] + [get_quarter_name(q) for q in config.QUARTERS]
 
     # Date legend helper
     def _get_quarter_legend(q_name):
@@ -292,30 +301,37 @@ def render_overview(
 
     # Row with KPIs on left and Filter on right
     # Using more flexible proportions to allow dynamic KPI width
-    _, kpi_col, _, filter_col = st.columns([0.08, 1.8, 0.15, 2.2], gap="medium")
+    _, kpi_col, _, filter_col = st.columns([0.05, 2.0, 0.1, 2.0], gap="medium")
     
     # First, we need to get the selected quarter for calculations
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
-            st.markdown("<p  class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
+            st.markdown(f"<p  class='filter-label'>{t('select_quarter')}</p>", unsafe_allow_html=True)
             
-            # Determine index
+            # Determine index based on the quarter_param (which is in Arabic)
             if quarter_param in config.QUARTERS:
-                q_idx = quarter_options.index(quarter_param)
+                # Find the display name for this Arabic key
+                display_name = get_quarter_name(quarter_param)
+                q_idx = quarter_display_options.index(display_name) if display_name in quarter_display_options else 0
             elif quarter_param == all_quarters_label:
                 q_idx = 0
             else:
                 q_idx = 0
 
-            selected_quarter_overview = st.selectbox(
-                "اختر الربع",
-                quarter_options,
+            # User selects from translated display names
+            # Include language in key to force refresh when language changes
+            current_lang = "en" if is_english() else "ar"
+            selected_display = st.selectbox(
+                t("select_quarter"),
+                quarter_display_options,
                 index=q_idx,
-                key="overview_quarter",
+                key=f"overview_quarter_{current_lang}",
                 label_visibility="hidden",
             )
-
+            
+            # Map selected display name back to Arabic key for data lookup
+            selected_quarter_overview = quarter_display_to_key.get(selected_display, selected_display)
 
 
     if selected_quarter_overview == all_quarters_label:
@@ -326,15 +342,16 @@ def render_overview(
     total_mosques_overview = len(metadata)
     violations_count_overview = len(overview_df)
 
+    q_display = get_quarter_name(selected_quarter_overview) if selected_quarter_overview != all_quarters_label else ""
     mosques_delta_label = (
-        f"محدّث حتى {selected_quarter_overview}"
+        t("updated_until", quarter=q_display)
         if selected_quarter_overview != all_quarters_label
-        else f"مجموع {len(config.QUARTERS)} أرباع"
+        else t("quarter_total", count=len(config.QUARTERS))
     )
     mosques_delta_html = f"<div class='delta neutral'>{mosques_delta_label}</div>"
 
     if selected_quarter_overview == all_quarters_label:
-        violations_delta_html = f"<div class='delta neutral'>إجمالي {len(config.QUARTERS)} أرباع</div>"
+        violations_delta_html = f"<div class='delta neutral'>{t('quarter_total', count=len(config.QUARTERS))}</div>"
     else:
         current_idx = config.QUARTERS.index(selected_quarter_overview)
         previous_label = config.QUARTERS[current_idx - 1] if current_idx > 0 else None
@@ -346,33 +363,34 @@ def render_overview(
 
     # Now render KPIs in the middle column (dynamic width based on content)
     with kpi_col:
+        # Increased ratio to [1, 1.6] to give more space to the second card (Violators)
         kpi_left, kpi_right = st.columns([1, 1.2], gap="medium")
         
         with kpi_left:
             render_kpi_card(
-                title="عدد المساجد في المملكة",
+                title=t("total_mosques"),
                 value=f"{total_mosques_overview:,}",
                 delta_html=mosques_delta_html,
-                tooltip="إجمالي عدد المساجد على مستوى المملكة"
+                tooltip="Total mosques in the Kingdom" if is_english() else "إجمالي عدد المساجد على مستوى المملكة"
             )
         
         with kpi_right:
-            kpi_title = "عدد المساجد المتجاوزة في منطقة الرياض"
+            kpi_title = t("violating_mosques_riyadh")
             if selected_quarter_overview != all_quarters_label:
-                kpi_title = f"عدد المساجد المتجاوزة في {selected_quarter_overview}"
+                kpi_title = t("violating_mosques_quarter", quarter=q_display)
                 
             render_kpi_card(
                 title=kpi_title,
                 value=f"{violations_count_overview:,}",
                 delta_html=violations_delta_html,
                 value_color_class="red",
-                tooltip="المساجد المتجاوزة في الرياض حاليا"
+                tooltip="Violating mosques in Riyadh" if is_english() else "المساجد المتجاوزة في الرياض حاليا"
             )
 
     col_map, col_bar = st.columns([1, 1], gap="medium")
 
     with col_map:
-        st.markdown("### خريطة المناطق الإدارية ")
+        st.markdown(f"### {t('admin_regions_map')}")
 
         violator_ids = (
             overview_df["رقم العداد"].astype(str).unique() if "رقم العداد" in overview_df.columns else []
@@ -418,27 +436,24 @@ def render_overview(
     with col_bar:
         render_regional_distribution_chart(metadata, all_violator_data)
 
-    st.markdown(" ###  المتجاوزين عبر الأرباع  في منطقة الرياض ")
+    st.markdown(f" ###  {t('violators_by_quarter')} ")
     
     quarter_labels = config.QUARTERS
     quarter_values = [len(all_violator_data.get(q, pd.DataFrame())) for q in config.QUARTERS]
 
     # line chart for number of violators per quarter
-    # Helper to format X-axis labels with date ranges (Arabic)
+    # Helper to format X-axis labels with date ranges
     def _format_quarter_label(q_name):
         if q_name in config.QUARTER_DATES:
             start, end = config.QUARTER_DATES[q_name]
             
-            arabic_months = {
-                1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل", 5: "مايو", 6: "يونيو",
-                7: "يوليو", 8: "أغسطس", 9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
-            }
+            start_str = get_month_name(start.month)
+            end_str = get_month_name(end.month)
             
-            start_str = arabic_months.get(start.month, start.strftime('%b'))
-            end_str = arabic_months.get(end.month, end.strftime('%b'))
-            
-            return f"{q_name}<br><span style='font-size:11px'>(من {start_str} إلى {end_str})</span>"
-        return q_name
+            q_display_name = get_quarter_name(q_name)
+            from_to = t("from_to", start=start_str, end=end_str)
+            return f"{q_display_name}<br><span style='font-size:11px'>({from_to})</span>"
+        return get_quarter_name(q_name)
 
     formatted_labels = [_format_quarter_label(q) for q in quarter_labels]
 
@@ -465,8 +480,8 @@ def render_overview(
         height=450,
         margin=dict(t=40, b=40, l=40, r=40),
         showlegend=False,
-        xaxis_title="<b>الربع</b>",
-        yaxis_title="<b>عدد المساجد المتجاوزة</b>",
+        xaxis_title=f"<b>{t('the_quarter')}</b>",
+        yaxis_title=f"<b>{t('violating_mosques_count')}</b>",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Tajawal, sans-serif", size=14, color="#1a2f29"),
@@ -508,93 +523,105 @@ def build_overview_map(regions_map):
         keyboard=False,
     )
     
+    # Dynamic CSS based on language
+    # User requested left alignment for map tooltips regardless of language
+    direction = "ltr" if is_english() else "rtl"
+    text_align = "left" 
+    label_align = "left"
+    value_align = "left" 
+    padding_side = "padding-right" if is_english() else "padding-left"
+    
     # Custom CSS for tooltip styling to match province map popup design
-    tooltip_css = """
+    tooltip_css = f"""
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        .leaflet-control-attribution{display:none !important;}
+        .leaflet-control-attribution{{display:none !important;}}
         
         /* Custom tooltip styling to match province map popups */
-        .leaflet-tooltip {
+        .leaflet-tooltip {{
             background: #faf8f3 !important;
             border: none !important;
             border-radius: 12px !important;
             box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12) !important;
             padding: 12px 16px !important;
             font-family: 'Tajawal', sans-serif !important;
-            direction: rtl !important;
-            text-align: right !important;
+            direction: {direction} !important;
+            text-align: {text_align} !important;
             min-width: 200px !important;
-        }
+        }}
         
-        .leaflet-tooltip::before {
+        .leaflet-tooltip::before {{
             display: none !important;
-        }
+        }}
         
         /* Target all text inside tooltip */
         .leaflet-tooltip,
-        .leaflet-tooltip * {
+        .leaflet-tooltip * {{
             font-family: 'Tajawal', sans-serif !important;
-        }
+        }}
         
-        .leaflet-tooltip table {
+        .leaflet-tooltip table {{
             border-collapse: collapse !important;
             width: 100% !important;
-        }
+        }}
         
-        .leaflet-tooltip table tr {
+        .leaflet-tooltip table tr {{
             border-bottom: 1px solid #f0f0f0 !important;
-        }
+        }}
         
-        .leaflet-tooltip table tr:last-child {
+        .leaflet-tooltip table tr:last-child {{
             border-bottom: none !important;
-        }
+        }}
         
         .leaflet-tooltip table td,
-        .leaflet-tooltip table th {
+        .leaflet-tooltip table th {{
             padding: 8px 6px !important;
             vertical-align: middle !important;
             font-size: 14px !important;
-        }
+        }}
         
         /* Labels column (th or first td) */
         .leaflet-tooltip table th,
-        .leaflet-tooltip table td:first-child {
+        .leaflet-tooltip table td:first-child {{
             color: #8a7a63 !important;
             font-size: 13px !important;
             font-weight: 500 !important;
-            text-align: right !important;
-            padding-left: 20px !important;
+            text-align: {label_align} !important;
+            {padding_side}: 20px !important;
             white-space: nowrap !important;
-        }
+        }}
         
         /* Values column (last td) */
-        .leaflet-tooltip table td:last-child {
+        .leaflet-tooltip table td:last-child {{
             color: #1a2f29 !important;
             font-size: 14px !important;
             font-weight: 700 !important;
-            text-align: left !important;
+            text-align: {value_align} !important;
             white-space: nowrap !important;
-        }
+        }}
         
         /* Override any strong/bold tags inside */
         .leaflet-tooltip strong,
-        .leaflet-tooltip b {
+        .leaflet-tooltip b {{
             color: #8a7a63 !important;
             font-weight: 500 !important;
-        }
+        }}
     </style>
     """
     m.get_root().html.add_child(folium.Element(tooltip_css))
+    
+    # Select name field based on language
+    name_field = "province_en" if is_english() else "name_ar"
     
     folium.GeoJson(
         data=regions_map.__geo_interface__,
         style_function=lambda _: {"fillColor": "#0B9444", "color": "#0B9444", "weight": 1, "fillOpacity": 0.5},
         highlight_function=lambda _: {"weight": 3, "fillOpacity": 0.7},
         tooltip=folium.GeoJsonTooltip(
-            fields=["name_ar", "count_label"], 
-            aliases=["المنطقة", "عدد المتجاوزين"],
+            fields=[name_field, "count_label"], 
+            aliases=[t("region"), t("violators_count")],
             sticky=False
         ),
+
     ).add_to(m)
     return m

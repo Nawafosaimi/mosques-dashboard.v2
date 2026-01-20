@@ -12,6 +12,7 @@ from data import find_coord_cols, load_visits_data, get_visit_status, normalize_
 from domain import simplify_geom
 from .header import render_header
 from folium.plugins import FastMarkerCluster
+from i18n import t, get_quarter_name, is_english
 
 
 
@@ -136,10 +137,14 @@ def _get_map_payload(
 
         merged_v["governorate_display"] = merged_v["METER_ID_STR"].map(governorate_map).fillna(merged_v["GOVERNORATE_NAME_AR"] if "GOVERNORATE_NAME_AR" in merged_v.columns else "").fillna("")
         
+        # Translate if English (and clean suffixes)
+        if is_english():
+             merged_v["governorate_display"] = merged_v["governorate_display"].astype(str).apply(lambda x: t(x.split('(')[0].strip()) if x else "")
+
         v_payload = merged_v[[lat_col, lon_col, "Name", "METER_ID_STR", "governorate_display", "marker_color", "visit_status_display", "visit_date_display", "causes_display", "violation_display"]].values.tolist()
 
     # If we only want violators, return now
-    if view_mode == "المتجاوزين فقط":
+    if view_mode == t("violators_only"):
         return v_payload
 
     # Otherwise, also process Non-Violators (The rest of the master list)
@@ -151,6 +156,11 @@ def _get_map_payload(
         
         # Static fields for NV
         non_violator_master_df["governorate_display"] = non_violator_master_df["GOVERNORATE_NAME_AR"] if "GOVERNORATE_NAME_AR" in non_violator_master_df.columns else ""
+        
+        # Translate if English (and clean suffixes)
+        if is_english():
+             non_violator_master_df["governorate_display"] = non_violator_master_df["governorate_display"].astype(str).apply(lambda x: t(x.split('(')[0].strip()) if x else "")
+             
         non_violator_master_df["marker_color"] = "GY"
         non_violator_master_df["visit_status_display"] = "NV"
         non_violator_master_df["visit_date_display"] = ""
@@ -185,7 +195,7 @@ def render_province_map(
     # --- Header & Controls ---
     col_back, col_title, col_filter = st.columns([0.6, 2.8, 0.6])
     with col_back:
-        if st.button(" رجوع", key="btn_back_from_map", use_container_width=True):
+        if st.button(f" {t('back')}", key="btn_back_from_map", use_container_width=True):
             back_q = st.query_params.get("quarter", config.QUARTERS[0])
             st.query_params.update(province=province_param, quarter=back_q)
             if "view" in st.query_params:
@@ -193,9 +203,15 @@ def render_province_map(
             st.rerun()
 
     with col_title:
-        ar_province_map = regions.loc[regions["province_en"] == province_param, "name_ar"].iloc[0]
+        # Select name based on language
+        if is_english():
+            # Use English name (already in province_param, but fetch from DF for consistency/formatting)
+            province_map_title = regions.loc[regions["province_en"] == province_param, "province_en"].iloc[0]
+        else:
+            province_map_title = regions.loc[regions["province_en"] == province_param, "name_ar"].iloc[0]
+            
         st.markdown(
-            f"<h2 style='text-align:center; margin: 0; padding-top: 5px; color: #1a2f29;'>{ar_province_map}</h2>",
+            f"<h2 style='text-align:center; margin: 0; padding-top: 5px; color: #1a2f29;'>{province_map_title}</h2>",
             unsafe_allow_html=True,
         )
 
@@ -248,36 +264,90 @@ def render_province_map(
     _, col_toggle, _mid, col_q, _ = st.columns([3, 3, 0.5, 8, 1], gap="large")
     
     with col_toggle:
-        st.markdown("<p class='map-section-label'>نطاق العرض</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='map-section-label'>{t('display_range')}</p>", unsafe_allow_html=True)
+        # Map localized options back to internal values if needed, or use localized values directly if payload handles it?
+        # The payload currently checks: view_mode == "المتجاوزين فقط" (line 142)
+        # So I need to map selection back to Arabic, OR update payload logic.
+        # Updating payload logic is better but riskier.
+        # Let's map display options to internal options.
+        
+        display_opts_view = [t("violators_only"), t("all_mosques")]
+        # Internal map: Translated -> Arabic
+        # Actually payload logic is simple. Let's just update payload check later.
+        # For now, let's keep internal values as Arabic? No, clean translation.
+        # I'll update line 142 in _get_map_payload to check against t("violators_only")?
+        # But payload is cached. t() changes. This breaks cache if t() result varies.
+        # Actually payload is cached based on args. 
+        # If I pass `view_mode` as translated string, and language changes, `_get_map_payload` runs again. That's fine.
+        
         view_mode = st.radio(
             "عرض المساجد",
-            ["المتجاوزين فقط", "جميع المساجد"],
+            display_opts_view,
             index=0, 
             horizontal=True, 
             label_visibility="collapsed", 
-            key="p_map_vmode_v7"
+            key="p_map_vmode_v7_localized"
         )
 
-    all_label = "كل الأرباع"
+    all_label = t("all_quarters")
     with col_q:
-        st.markdown("<p class='map-section-label'>اختر الربع</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='map-section-label'>{t('select_quarter')}</p>", unsafe_allow_html=True)
+        
+        # Use get_quarter_name for display, but payload might expect config names?
+        # _get_map_payload uses `quarter` arg to filter or if it equals all_label.
+        # config.QUARTERS are keys "الربع الرابع 2024" etc.
+        # I should display translated names but return original key...
+        # BUT st.selectbox returns the selected option.
+        # So I should use a map again?
+        # Or just use `format_func`.
+        
+        # Using format_func is cleaner for selectbox.
+        q_opts_keys = [all_label] + config.QUARTERS
+        # Only 'all_label' is already translated. config.QUARTERS are Arabic keys.
+        # Wait, if I change all_label to t("all_quarters"), it is translated.
+        # config.QUARTERS are strings.
+        
+        def format_q(q):
+            if q == all_label: return q
+            return get_quarter_name(q)
+
+        # We need to find the correct index based on URL which has original key
+        q_in_url = st.query_params.get("quarter", config.QUARTERS[0])
+        # q_in_url is likely Arabic key (from config.QUARTERS) or "all"?
+        # URL stores Arabic key.
+        
+        # If URL has 'all_label' (translated)? URLs should ideally be lang-agnostic but here they store displayed value?
+        # If I change all_label to be translated, the URL param value will change with language?
+        # Province Details used mapping.
+        
+        # Let's simple approach: opts are mix of translated 'All' and Arabic Keys.
+        # We use format_func to translate Arabic Keys.
+        
+        # Re-defining all_label as internal constant?
+        # render_province_map is called with province_param (EN).
         
         opts = [all_label] + config.QUARTERS
-        q_in_url = st.query_params.get("quarter", config.QUARTERS[0])
-        q_idx = opts.index(q_in_url) if q_in_url in opts else 0
         
+        # q_in_url is likely one of config.QUARTERS.
+        q_idx = 0
+        if q_in_url in config.QUARTERS:
+             q_idx = opts.index(q_in_url)
+        elif q_in_url == all_label:
+             q_idx = 0
+             
         sel_q_map = st.selectbox(
             "الربع",
             opts,
             index=q_idx,
             label_visibility="collapsed",
-            key="p_map_qtr_v7",
+            key="p_map_qtr_v7_localized",
+            format_func=format_q
         )
 
     # --- Legend ---
-    st.markdown("""
+    st.markdown(f"""
         <style>
-        .map-legend {
+        .map-legend {{
             display: flex;
             justify-content: center;
             align-items: center;
@@ -289,43 +359,43 @@ def render_province_map(
             max-width: fit-content;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             border: 1px solid #e1d9c6;
-        }
-        .legend-item {
+        }}
+        .legend-item {{
             display: flex;
             align-items: center;
             gap: 8px;
-        }
-        .legend-marker {
+        }}
+        .legend-marker {{
             width: 16px;
             height: 16px;
             border-radius: 50%;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-        .legend-label {
+        }}
+        .legend-label {{
             font-family: 'Tajawal', sans-serif;
             font-size: 14px;
             font-weight: 600;
             color: #1a2f29;
-        }
+        }}
         </style>
         <div class="map-legend">
             <div class="legend-item">
                 <div class="legend-marker" style="background-color: #808080;"></div>
-                <span class="legend-label">غير متجاوز</span>
+                <span class="legend-label">{t("non_violator")}</span>
             </div>
             <div class="legend-item">
                 <div class="legend-marker" style="background-color: #0B9444;"></div>
-                <span class="legend-label">متجاوز وتمت زيارته</span>
+                <span class="legend-label">{t("violator_visited")}</span>
             </div>
             <div class="legend-item">
                 <div class="legend-marker" style="background-color: #dc3545;"></div>
-                <span class="legend-label">متجاوز ولم تتم زيارته</span>
+                <span class="legend-label">{t("violator_not_visited")}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
     # --- Consolidated Data Preparation (CACHED - NO HASHING) ---
-    all_label = "كل الأرباع"
+    # all_label is t("all_quarters")
     visits_df = load_visits_data()
     
     # Pass only the relevant quarter's data to avoid hashing the whole dict
@@ -345,7 +415,7 @@ def render_province_map(
     )
     
     if not map_data:
-        st.warning("لا توجد بيانات للمتجاوزين")
+        st.warning(t("no_violator_data"))
         st.stop()
 
     # --- Map Center & Zoom (CACHED - NO HASHING) ---
@@ -444,7 +514,7 @@ def render_province_map(
                 "weight": 2,
                 "fillOpacity": 0.1,
             },
-            tooltip=ar_province_map
+            tooltip=province_map_title
         ).add_to(m)
 
     # 2. Add Mosque Markers with FastMarkerCluster
@@ -460,23 +530,23 @@ def render_province_map(
         // Decoding Mapping
         var color_map = {{'R': 'red', 'G': 'green', 'O': 'orange', 'GY': 'gray'}};
         var status_map = {{
-            'NV': 'غير متجاوز',
-            'UV': 'متجاوز ولم تتم زيارته',
-            'VV': 'متجاوز وتمت زيارته',
-            'PI': 'تحت الإجراء'
+            'NV': '{t("non_violator")}',
+            'UV': '{t("violator_not_visited")}',
+            'VV': '{t("violator_visited")}',
+            'PI': '{t("in_progress_status")}'
         }};
         
         var marker_color_code = row[5] || "R";
         var visit_status_code = row[6] || "UV";
         
         var marker_color = color_map[marker_color_code] || 'red';
-        var visit_status = status_map[visit_status_code] || 'متجاوز ولم تتم زيارته';
+        var visit_status = status_map[visit_status_code] || '{t("violator_not_visited")}';
         
         var visit_date = row[7] || "";
         var causes = row[8] || "";
         var violation_type = row[9] || "";
         
-        var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}";
+        var details_link = "/?meter=" + meter_id + "&province={province_param}&quarter={sel_q_map}&lang={"en" if is_english() else "ar"}";
         var google_maps_link = "https://www.google.com/maps/search/?api=1&query=" + lat + "," + lon;
         
         var badge_color = marker_color === 'green' ? '#0B9444' : (marker_color === 'orange' ? '#ff8c00' : (marker_color === 'gray' ? '#808080' : '#dc3545'));
@@ -485,7 +555,7 @@ def render_province_map(
         if (visit_date) {{
             visit_info_html += `
                 <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #8a7a63; font-size: 12px;">تاريخ الزيارة:</span>
+                    <span style="color: #8a7a63; font-size: 12px;">{t("visit_date")}:</span>
                     <span style="color: #1a2f29; font-size: 13px; font-weight: 600;">${{visit_date}}</span>
                 </div>
             `;
@@ -493,7 +563,7 @@ def render_province_map(
         if (causes) {{
             visit_info_html += `
                 <div style="margin-bottom: 8px;">
-                    <span style="color: #8a7a63; font-size: 12px; display: block; margin-bottom: 4px;">المسببات:</span>
+                    <span style="color: #8a7a63; font-size: 12px; display: block; margin-bottom: 4px;">{t("causes")}:</span>
                     <span style="color: #1a2f29; font-size: 12px; line-height: 1.4;">${{causes}}</span>
                 </div>
             `;
@@ -502,8 +572,8 @@ def render_province_map(
         var popup_html = `
             <div style="
                 font-family: 'Tajawal', sans-serif; 
-                direction: rtl; 
-                text-align: right; 
+                direction: {"rtl" if not is_english() else "ltr"}; 
+                text-align: {"right" if not is_english() else "left"}; 
                 min-width: 300px;
                 padding: 12px;
                 background-color: #faf8f3;
@@ -520,15 +590,15 @@ def render_province_map(
                 ">${{name}}</h4>
                 
                 <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #8a7a63; font-size: 13px;">رقم العداد:</span>
+                    <span style="color: #8a7a63; font-size: 13px;">{t("meter_number")}:</span>
                     <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{meter_id}}</span>
                 </div>
                 <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #8a7a63; font-size: 13px;">المحافظة:</span>
+                    <span style="color: #8a7a63; font-size: 13px;">{t("governorate")}:</span>
                     <span style="color: #1a2f29; font-size: 14px; font-weight: 700; font-family: 'Tajawal', sans-serif;">${{governorate}}</span>
                 </div>
                 <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #8a7a63; font-size: 13px;">الحالة:</span>
+                    <span style="color: #8a7a63; font-size: 13px;">{t("status")}:</span>
                     <span style="
                         background-color: ${{badge_color}};
                         color: white;
@@ -562,7 +632,7 @@ def render_province_map(
                     onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
                     onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
                     >
-                        تفاصيل اكثر
+                        {t("more_details")}
                     </a>
                     <a href="${{google_maps_link}}" target="_blank" style="
                         flex: 1;
@@ -584,7 +654,7 @@ def render_province_map(
                     onmouseover="this.style.backgroundColor='#eaddc5'; this.style.borderColor='#d4c8b0';"
                     onmouseout="this.style.backgroundColor='#f4efe2'; this.style.borderColor='#e1d9c6';"
                     >
-                        موقع قوقل ماب
+                        {t("google_maps")}
                     </a>
                 </div>
             </div>
@@ -610,7 +680,7 @@ def render_province_map(
     FastMarkerCluster(
         data=map_data,
         callback=callback,
-        name="المساجد",
+        name=t("map_layer_mosques"),
         overlay=True,
         control=False
     ).add_to(m)

@@ -20,6 +20,7 @@ from ui.components import (
     render_province_details,
     render_province_map,
 )
+from i18n import set_language, get_language
 
 
 
@@ -34,6 +35,11 @@ def main():
         initial_sidebar_state="collapsed",
     )
     apply_base_styles()
+
+    # 1.5 Handle language from query params
+    lang_param = st.query_params.get("lang", "")
+    if lang_param in ["ar", "en"]:
+        set_language(lang_param)
 
     # 2. Initialize session state
     if "refresh_quarters" not in st.session_state:

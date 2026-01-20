@@ -4,6 +4,7 @@ from typing import Dict, Iterable, Tuple
 
 import pandas as pd
 import streamlit as st
+from i18n import t
 
 
 def safe_str(value) -> str:
@@ -16,9 +17,9 @@ def safe_str(value) -> str:
 def localize_booleans(df: pd.DataFrame) -> pd.DataFrame:
     for column in df.columns:
         if df[column].dtype == bool:
-            df[column] = df[column].map({True: "نعم", False: "لا"})
+            df[column] = df[column].map({True: t("yes"), False: t("no")})
         else:
-            df[column] = df[column].astype(str).replace({"True": "نعم", "False": "لا"})
+            df[column] = df[column].astype(str).replace({"True": t("yes"), "False": t("no")})
     return df
 
 
@@ -52,7 +53,8 @@ def build_marker_payload(
     }
 
     def minimal_popup(mid, name):
-        return f"<b>العداد:</b> {mid}<br><b>الاسم:</b> {safe_str(name)}"
+        # Translate keys 'meter' and 'name'
+        return f"<b>{t('meter')}:</b> {mid}<br><b>{t('name')}:</b> {safe_str(name)}"
 
     points = [
         [row[lat_col], row[lon_col], minimal_popup(str(row["METER_ID_STR"]), row.get("Name", "—"))]

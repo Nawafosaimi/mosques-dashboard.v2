@@ -457,10 +457,15 @@ div[data-testid="stDialog"] button[kind="secondary"]:hover {
 }
 
 /* Responsive breakpoints for KPI */
-@media (max-width: 1200px) {
+@media (max-width: 1300px) {
   .kpi {
     padding: 10px 12px;
-    min-width: 200px;
+    min-width: 180px;
+  }
+
+  .kpi .t {
+    white-space: normal !important;
+    font-size: 15px !important;
   }
 }
 
@@ -473,6 +478,7 @@ div[data-testid="stDialog"] button[kind="secondary"]:hover {
 
   .kpi .t {
     font-size: 16px;
+    white-space: normal !important;
   }
 
   .kpi .v {
@@ -500,10 +506,11 @@ div[data-testid="stDialog"] button[kind="secondary"]:hover {
 }
 
 .kpi .t {
-  font-size: 16px;
+  font-size: 15px;
   color: #2b5d4a;
   white-space: normal;
   margin-bottom: 5px;
+  line-height: 1.4;
 }
 
 .kpi .v {

@@ -13,10 +13,70 @@ from domain import localize_booleans
 from data import load_visits_data, get_visited_meter_ids, get_visit_stats
 from .kpi_card import render_kpi_card
 from .header import render_header
+from i18n import t, is_english, get_quarter_name, get_month_name
 
 
 
 
+
+# Map arabic column names to translated headers keys
+COL_TRANSLATION_MAP = {
+    "اسم المسجد": "mosque_name",
+    "رقم العداد": "meter_number",
+    "المحافظة": "governorate",
+    "الفترة صباحا/مساء": "morning_evening_period",
+    "قيمة الاستهلاك الإجمالي": "total_consumption_value",
+    "مخالف سابقا": "previously_violating",
+    "حالة الزيارة": "visit_status",
+    "الموقع": "location",
+    "نسبة التجاوز في الفترة الصباحية": "morning_violation_pct",
+    "نسبة التجاوز في الفترة المسائية": "evening_violation_pct"
+}
+
+# Values translation map for dropdowns
+DROPDOWN_VALUES_MAP = {
+    "شمال": "north", 
+    "جنوب": "south", 
+    "شرق": "east", 
+    "غرب": "west", 
+    "وسط": "middle",
+    "الشمال": "north",
+    "الجنوب": "south",
+    "الشرق": "east",
+    "الغرب": "west",
+    "الوسط": "middle",
+    "الوسطى": "middle",
+    "شمالية": "north",
+    "جنوبية": "south",
+    "شرقية": "east",
+    "غربية": "west",
+    "الشمالية": "north",
+    "الجنوبية": "south",
+    "الشرقية": "east",
+    "الغربية": "west",
+    "محافظات الشمال": "north",
+    "محافظات الجنوب": "south",
+    "محافظات الشرق": "east",
+    "محافظات الغرب": "west",
+    "محافظات الوسط": "middle",
+    "محافظات شمال الرياض": "gov_north_riyadh",
+    "محافظات جنوب الرياض": "gov_south_riyadh",
+    "محافظات شرق الرياض": "gov_east_riyadh",
+    "محافظات غرب الرياض": "gov_west_riyadh",
+    "جنوب الرياض": "gov_south_riyadh",
+    "شمال الرياض": "gov_north_riyadh",
+    "شرق الرياض": "gov_east_riyadh",
+    "غرب الرياض": "gov_west_riyadh",
+    "مدينة الرياض": "city_riyadh",
+    "صباحي": "morning", 
+    "مسائي": "evening",
+    "فترة صباحية": "morning",
+    "فترة مسائية": "evening",
+    "صباحا": "morning",
+    "مساء": "evening",
+    "كلا الفترتين": "both_periods",
+    "الكل": "all"
+}
 
 def render_province_details(
     province_param: str,
@@ -36,21 +96,42 @@ def render_province_details(
     render_header()
 
     # Title at the top
-    st.markdown(f"<h1 style='text-align: center;'>تفاصيل {ar_province}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center;'>{t('details_of', province=province_param if is_english() else ar_province)}</h1>", unsafe_allow_html=True)
+
+    # Determine active quarter for navigation (prioritize user selection in dropdown)
+    lang_suffix = "en" if is_english() else "ar"
+    ss_key = f"detail_quarter_{lang_suffix}"
+    
+    # Helper to map display back to key (needed here for button)
+    # Using local map to avoid large moves
+    q_map_temp = {t("all_quarters"): t("all_quarters")}
+    for q in config.QUARTERS:
+        q_map_temp[get_quarter_name(q)] = q
+        
+    active_quarter = quarter_param
+    if ss_key in st.session_state:
+        disp_val = st.session_state[ss_key]
+        active_quarter = q_map_temp.get(disp_val, disp_val)
 
     # Navigation buttons on the left - smaller and equal size
     _, back_col, map_col, _ = st.columns([0.2, 0.8, 0.8, 5.2])
     with back_col:
-        if st.button(" رجوع", key="btn_back", use_container_width=True):
+        if st.button(f" {t('back')}", key="btn_back", use_container_width=True):
             st.query_params.clear()
             st.rerun()
     with map_col:
-        if st.button(" فتح الخريطة التفاعلية", key="btn_open_map", use_container_width=True):
-            st.query_params.update(province=province_param, quarter=quarter_param, view="map")
+        # Pass active_quarter and explicitly preserve language
+        if st.button(f" {t('open_interactive_map')}", key="btn_open_map", use_container_width=True):
+            st.query_params.update(
+                province=province_param, 
+                quarter=active_quarter, 
+                view="map",
+                lang="en" if is_english() else "ar"
+            )
             st.rerun()
 
     # Setup quarters and selection
-    all_quarters_label = "كل الأرباع"
+    all_quarters_label = t("all_quarters")
     
     # Robust deduplication: ensure all labels are unique and stripped
     all_options = [all_quarters_label] + config.QUARTERS
@@ -86,14 +167,38 @@ def render_province_details(
     with filter_col:
         spacer, filter_inner_col, _ = st.columns([0.5, 0.9, 0.6])
         with filter_inner_col:
-            st.markdown("<p class='filter-label'>اختر الربع</p>", unsafe_allow_html=True)
-            selected_quarter = st.selectbox(
-                "الربع",
-                quarter_options,
+            st.markdown(f"<p class='filter-label'>{t('select_quarter')}</p>", unsafe_allow_html=True)
+            
+            # Display options (translated)
+            quarter_display_options = [all_quarters_label] + [get_quarter_name(q) for q in config.QUARTERS]
+            
+            # Helper to map display name back to key
+            quarter_display_to_key = {all_quarters_label: all_quarters_label}
+            for q in config.QUARTERS:
+                quarter_display_to_key[get_quarter_name(q)] = q
+            
+            # Determine index based on quarter_param
+            q_idx = 0
+            if quarter_param in config.QUARTERS:
+                 # Find display name for this key
+                 display_name = get_quarter_name(quarter_param)
+                 if display_name in quarter_display_options:
+                     q_idx = quarter_display_options.index(display_name)
+            elif quarter_param == all_quarters_label:
+                q_idx = 0
+
+            # Language-keyed state to reset on language switch
+            lang_suffix = "en" if is_english() else "ar"
+            
+            selected_display = st.selectbox(
+                t("select_quarter"),
+                quarter_display_options,
                 index=q_idx,
-                key="detail_quarter",
+                key=f"detail_quarter_{lang_suffix}",
                 label_visibility="hidden",
             )
+            
+            selected_quarter = quarter_display_to_key.get(selected_display, selected_display)
             
 
 
@@ -107,7 +212,7 @@ def render_province_details(
         table_q_all_provinces = all_violator_data.get(selected_quarter, pd.DataFrame()).copy()
 
     if table_q_all_provinces.empty:
-        st.warning(f"لا توجد بيانات مخالفات متاحة لـ {selected_quarter}")
+        st.warning(t("no_violation_data", quarter=get_quarter_name(selected_quarter)))
         st.stop()
 
     if "رقم العداد" in table_q_all_provinces.columns and "Province" in metadata.columns:
@@ -167,6 +272,11 @@ def render_province_details(
         filtered = temp[temp["رقم العداد"].isin(allowed_meters)]
         return len(filtered.dropna(how="all"))
 
+# Helper to get translated validation text
+    def _get_validation_text(prev_label):
+        prev_name = get_quarter_name(prev_label)
+        return t("no_change_previous") + f" {prev_name}"
+
     def _build_delta_html(
         current_count: int,
         previous_count: int | None,
@@ -174,12 +284,12 @@ def render_province_details(
         prefer_lower: bool = False,
     ) -> str:
         if previous_label is None or previous_count is None:
-            return "<div class='delta neutral'>أول فترة متاحة</div>"
+            return f"<div class='delta neutral'>{t('first_available_period')}</div>"
         if previous_count == 0:
-            return "<div class='delta neutral'>لا توجد بيانات للمقارنة</div>"
+            return f"<div class='delta neutral'>{t('no_data_comparison')}</div>"
         diff = current_count - previous_count
         if diff == 0:
-            return f"<div class='delta flat'>بدون تغيير مقارنة بالربع السابق {previous_label}</div>"
+            return f"<div class='delta flat'>{_get_validation_text(previous_label)}</div>"
         pct = (diff / previous_count) * 100
         if diff > 0:
             direction = "up" if not prefer_lower else "down"
@@ -196,13 +306,13 @@ def render_province_details(
         
         # Badge Style with Flexbox: Text [Right] | Badge [Left]
         badge_html = f"<span class='delta-badge {direction}'>{pct_text} {arrow}</span>"
-        text_html = f"<span>{diff_text} مقارنة بالربع السابق </span>"
+        text_html = f"<span>{diff_text} {t('compared_to_previous')} </span>"
         return f"<div class='delta {direction}'>{text_html}{badge_html}</div>"
 
     # Prepare delta HTML for violations
     if selected_quarter == all_quarters_label:
-        violations_delta_html = f"<div class='delta neutral'>إجمالي {len(config.QUARTERS)} أرباع</div>"
-        mosques_delta_html = f"<div class='delta neutral'>مجموع {len(config.QUARTERS)} أرباع</div>"
+        violations_delta_html = f"<div class='delta neutral'>{t('total_quarters', count=len(config.QUARTERS))}</div>"
+        mosques_delta_html = f"<div class='delta neutral'>{t('sum_quarters', count=len(config.QUARTERS))}</div>"
     else:
         current_idx = config.QUARTERS.index(selected_quarter)
         previous_label = config.QUARTERS[current_idx - 1] if current_idx > 0 else None
@@ -211,40 +321,40 @@ def render_province_details(
         violations_delta_html = _build_delta_html(
             current_count, previous_count, previous_label, prefer_lower=True
         )
-        mosques_delta_html = f"<div class='delta neutral'>محدّث حتى {selected_quarter}</div>"
+        mosques_delta_html = f"<div class='delta neutral'>{t('updated_until', quarter=get_quarter_name(selected_quarter))}</div>"
 
     # Render KPIs in the middle column (dynamic width based on content)
     with kpi_col:
         # Increase width for Violations (middle) and Visited (right) cards to fit text
-        k1, k2, k3 = st.columns([3.9, 4.8, 2.3], gap="medium")
+        k1, k2, k3 = st.columns([4.5, 6, 4.0], gap="medium")
 
         with k1:
             render_kpi_card(
-                title=f"عدد المساجد في {ar_province}",
+                title=t("total_mosques_province", province=province_param if is_english() else ar_province),
                 value=f"{total_mosques:,}",
                 delta_html=mosques_delta_html,
-                tooltip="إجمالي عدد المساجد المسجلة في هذه المنطقة"
+                tooltip=t("total_mosques") # Using generic tooltip or keeping specific? Let's use generic for now or specific key
             )
 
         with k2:
-            kpi_title = "عدد المساجد المتجاوزة"
+            kpi_title = t("violating_mosques")
             if selected_quarter != all_quarters_label:
-                kpi_title = f"عدد المساجد المتجاوزة في {selected_quarter}"
+                kpi_title = t("violating_mosques_quarter", quarter=get_quarter_name(selected_quarter))
             
             render_kpi_card(
                 title=kpi_title,
                 value=f"{violations_count:,}",
                 delta_html=violations_delta_html,
                 value_color_class="red",
-                tooltip="المساجد المتاجاوزة خلال الربع"
+                tooltip=t("violating_mosques")
             )
 
         with k3:
             render_kpi_card(
-                title="تمت زيارتهم",
+                title=t("mosques_visited"),
                 value=f"{visit_stats['total_visited']:,}",
-                delta_html=f"<div class='delta neutral'>من  {violations_count:,} مسجد</div>",
-                tooltip="عدد المساجد المتجاوزة التي تمت زيارتها ميدانياً"
+                delta_html=f"<div class='delta neutral'>{t('out_of_mosques', count=f'{violations_count:,}')}</div>",
+                tooltip=t("mosques_visited")
             )
 
     # Prepare display dataframe
@@ -280,27 +390,27 @@ def render_province_details(
         def _resolve_visit_status(meter_val):
              meter_id = str(meter_val).strip()
              if meter_id not in visited_meter_ids:
-                 return "لا"
+                 return t("no")
              
              date_str = visit_date_map.get(meter_id)
              if not date_str:
-                 return "تمت الزيارة (تاريخ غير محدد)"
+                 return t("visited_date_unspecified")
                  
              # Check if date is in quarter range
              try:
                  visit_date = pd.to_datetime(date_str, dayfirst=True).to_pydatetime()
                  if q_start and q_end:
                      if q_start <= visit_date <= q_end:
-                         return f"تمت الزيارة ({date_str})"
+                         return t("visited_on_date", date=date_str)
                      else:
                          # Visited but not in this quarter
-                         return "لا"
+                         return t("no")
                  else:
                      # No quarter selected (or 'All Quarters'), show date
-                     return f"تمت الزيارة ({date_str})"
+                     return t("visited_on_date", date=date_str)
              except:
                  # Date parse failed, treat as visited
-                 return f"تمت الزيارة ({date_str})"
+                 return t("visited_on_date", date=date_str)
 
         display["حالة الزيارة"] = display["رقم العداد"].astype(str).str.strip().apply(_resolve_visit_status)
     
@@ -367,11 +477,18 @@ def render_province_details(
     except ValueError:
         sort_idx = 0
 
-    order_options = ["تصاعدي", "تنازلي"]
-    try:
-        order_idx = order_options.index(st.session_state.detail_sort_order)
-    except ValueError:
-        order_idx = 1
+    order_options_map = {t("ascending"): "تصاعدي", t("descending"): "تنازلي"}
+    # Reverse map for display
+    order_display_options = [t("ascending"), t("descending")]
+    
+    # Store internal value (Arabic) in session state for consistency with logic
+    current_order_val = st.session_state.detail_sort_order
+    # Find display index
+    order_idx = 1 # Default descending
+    if current_order_val == "تصاعدي":
+         order_idx = 0
+    elif current_order_val == "تنازلي":
+         order_idx = 1
 
     # Pagination state setup (needed before building the row)
     st.session_state.setdefault("detail_rows_per_page", 50)
@@ -387,144 +504,226 @@ def render_province_details(
     with title_col:
         # We will update this later with the filtered count
         title_placeholder = st.empty()
-        title_placeholder.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 0;'>قائمة المساجد المتجاوزة</h4>", unsafe_allow_html=True)
+        title_placeholder.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 0;'>{t('violating_mosques_list')}</h4>", unsafe_allow_html=True)
 
     with search_col:
-        _control_label("البحث")
+        _control_label(t("search"))
         search_query = st.text_input(
             "بحث",
-            placeholder="ابحث...",
+            placeholder=t("search_placeholder"),
             label_visibility="collapsed",
             key="detail_search",
         )
 
     with sort_col:
-        _control_label("ترتيب حسب")
+        _control_label(t("sort_by"))
+        # Translation of sort options (column names) is tricky because logic depends on Arabic names
+        # Better to keep Arabic names in dropdown for now OR map them.
+        # Given complexity, we keep column names as is for now in dropdown, but maybe translate commonly used ones?
+        # Let's keep logic simple for now as column names are Arabic in DF.
+        
         sort_column = st.selectbox(
-            "ترتيب حسب",
+            t("sort_by"), # Translated label
             options=sort_options,
             index=sort_idx,
             label_visibility="collapsed",
             key="_detail_sort_column_widget",
+            # Use format_func to translate Arabic column names to English keys if mapped
+            format_func=lambda x: t(COL_TRANSLATION_MAP.get(x, x))
         )
         if sort_column != st.session_state.detail_sort_column:
             st.session_state.detail_sort_column = sort_column
             st.rerun()
 
     with order_col:
-        _control_label("الترتيب")
-        sort_order = st.selectbox(
+        _control_label(t("order"))
+        sort_order_display = st.selectbox(
             "الترتيب",
-            options=order_options,
+            options=order_display_options,
             index=order_idx,
             label_visibility="collapsed",
             key="_detail_sort_order_widget",
         )
-        if sort_order != st.session_state.detail_sort_order:
-            st.session_state.detail_sort_order = sort_order
+        # Map back to Arabic value
+        new_order_val = order_options_map.get(sort_order_display, "تنازلي")
+        if new_order_val != st.session_state.detail_sort_order:
+            st.session_state.detail_sort_order = new_order_val
             st.rerun()
 
     # Sheet filter
     selected_sheet = ""
     with sheet_col:
         if "المحافظة_الورقة" in table_q.columns:
-            _control_label("اتجاة المحافظات")
+            _control_label(t("province_direction"))
             
             # Get available sheet options
             sheet_values = table_q["المحافظة_الورقة"].dropna().astype(str).unique().tolist()
             
             # Only show dropdown if there are actual values to filter by
             if len(sheet_values) > 0:
-                sheet_options = ["الكل"] + sorted(sheet_values)
+                sheet_options = [t("all")] + sorted(sheet_values)
                 # Find current index
                 try:
-                    sheet_idx = sheet_options.index(st.session_state.detail_sheet_filter)
+                    # Logic needs to handle "الكل" vs "All" translation mapping if stored in session state
+                    # Currently session state stores "الكل".
+                    current_val = st.session_state.detail_sheet_filter
+                    # If we switch language, "الكل" might need to be "All".
+                    # But for logic consistency, let's Map display to internal value.
+                    
+                    display_val = t("all") if current_val == "الكل" else current_val
+                    sheet_idx = sheet_options.index(display_val) if display_val in sheet_options else 0
                 except ValueError:
                     sheet_idx = 0
 
-                selected_sheet = st.selectbox(
-                    "اتجاة المحافظات",
+                selected_sheet_display = st.selectbox(
+                    t("province_direction"),
                     sheet_options,
                     index=sheet_idx,
                     label_visibility="collapsed",
-                    key="detail_sheet_filter",
+                    key="detail_sheet_filter_widget", # Changed key to avoid auto-sync with old key format
+                    format_func=lambda x: t(DROPDOWN_VALUES_MAP.get(str(x).strip(), x))
                 )
-                # Value is automatically updated in st.session_state.detail_sheet_filter due to key
+                
+                # Map back
+                selected_sheet_val = "الكل" if selected_sheet_display == t("all") else selected_sheet_display
+                if selected_sheet_val != st.session_state.detail_sheet_filter:
+                    st.session_state.detail_sheet_filter = selected_sheet_val
+                    st.rerun()
             else:
                 # No sheet data available - show disabled dropdown
                 st.selectbox(
-                    "اتجاة المحافظات",
-                    ["لا يوجد"],
+                    t("province_direction"),
+                    [t("none")],
                     index=0,
                     disabled=True,
                     label_visibility="collapsed",
                     key="detail_sheet_filter",
                 )
                 # Ensure state is consistent
-                if st.session_state.detail_sheet_filter != "الكل":
-                     st.session_state.detail_sheet_filter = "الكل"
-                     st.rerun()
+                # Ensure state is consistent
+                selected_sheet_val = "الكل"
+                if selected_sheet_val != st.session_state.detail_sheet_filter:
+                    st.session_state.detail_sheet_filter = selected_sheet_val
+                    st.rerun()
+                    
+    selected_sheet = st.session_state.detail_sheet_filter
 
     selected_governorate = ""
     selected_period = ""
 
     with gov_col:
         if governorate_col_name in display.columns:
-            _control_label("المحافظة")
+            _control_label(t("governorate"))
             
             # Dependent Filter Logic: Filter options based on selected sheet (Direction)
             gov_source_df = display
             if selected_sheet and selected_sheet != "الكل" and "المحافظة_الورقة" in display.columns:
                 gov_source_df = display[display["المحافظة_الورقة"].astype(str) == selected_sheet]
                 
-            governorate_options = ["الكل"] + sorted(
-                gov_source_df[governorate_col_name].dropna().astype(str).unique().tolist()
-            )
+            gov_values = sorted(gov_source_df[governorate_col_name].dropna().astype(str).unique().tolist())
+            governorate_options = [t("all")] + gov_values
             
             # Handle case where previously selected governorate is no longer valid
             current_gov = st.session_state.get("detail_governorate", "الكل")
-            gov_index = 0
-            if current_gov in governorate_options:
-                gov_index = governorate_options.index(current_gov)
             
-            selected_governorate = st.selectbox(
-                "المحافظة",
+            # Map current value to visual (only if "الكل")
+            current_gov_disp = t("all") if current_gov == "الكل" else current_gov
+            
+            gov_index = 0
+            if current_gov_disp in governorate_options:
+                gov_index = governorate_options.index(current_gov_disp)
+            
+            selected_gov_display = st.selectbox(
+                t("governorate"),
                 governorate_options,
                 index=gov_index,
                 label_visibility="collapsed",
-                key="detail_governorate",
+                key="detail_governorate_widget",
+                # Translate governorate names if they exist in i18n
+                format_func=lambda x: t(x)
             )
+            
+            # Map back
+            selected_gov_val = "الكل" if selected_gov_display == t("all") else selected_gov_display
+            # Update session state if changed (manual sync because widget key is different)
+            if selected_gov_val != st.session_state.get("detail_governorate"):
+                 st.session_state.detail_governorate = selected_gov_val
+                 st.rerun()
+                 
+    selected_governorate = st.session_state.get("detail_governorate", "الكل")
 
 
     with period_col:
         if period_col_name and period_col_name in display.columns:
-            _control_label("الفترة")
+            _control_label(t("period"))
             # Get unique period values safely
             period_series = display[period_col_name].dropna().astype(str)
-            period_options = ["الكل"] + sorted(list(set(period_series)))
-            selected_period = st.selectbox(
-                "الفترة",
+            period_values = sorted(list(set(period_series)))
+            # Basic translation for values if they are standarized (Morning/Evening)? 
+            # Assuming they are variable, we keep them but translate "All"
+            period_options = [t("all")] + period_values
+            
+            current_period = st.session_state.get("detail_period", "الكل")
+            current_period_disp = t("all") if current_period == "الكل" else current_period
+            
+            per_idx = period_options.index(current_period_disp) if current_period_disp in period_options else 0
+            
+            selected_period_display = st.selectbox(
+                t("period"),
                 period_options,
-                index=0,
+                index=per_idx,
                 label_visibility="collapsed",
-                key="detail_period",
+                key="detail_period_widget",
+                format_func=lambda x: t(DROPDOWN_VALUES_MAP.get(x, x))
             )
+            
+            # Map back
+            selected_period_val = "الكل" if selected_period_display == t("all") else selected_period_display
+            if selected_period_val != st.session_state.get("detail_period"):
+                 st.session_state.detail_period = selected_period_val
+                 st.rerun()
         else:
-            selected_period = ""
+            selected_period_val = "الكل"
+
+    selected_period = st.session_state.get("detail_period", "الكل")
 
     # Visit status filter
     selected_visit_status = ""
     with visit_col:
         # Always show visit status filter
-        _control_label("حالة الزيارة")
-        visit_status_options = ["الكل", "تمت الزيارة", "لم تتم الزيارة"]
-        selected_visit_status = st.selectbox(
-            "حالة الزيارة",
-            visit_status_options,
-            index=0,
+        _control_label(t("visit_status"))
+        
+        # Options map
+        visit_options_map = {
+            t("all"): "الكل",
+            t("visited"): "تمت الزيارة",
+            t("not_visited"): "لم تتم الزيارة"
+        }
+        # Display options
+        visit_status_display_options = [t("all"), t("visited"), t("not_visited")]
+        
+        current_visit = st.session_state.get("detail_visit_status", "الكل")
+        # Reverse lookup for display
+        # "الكل" -> "All", "تمت الزيارة" -> "Visited"
+        curr_disp = next((k for k, v in visit_options_map.items() if v == current_visit), t("all"))
+        
+        v_idx = visit_status_display_options.index(curr_disp) if curr_disp in visit_status_display_options else 0
+        
+        selected_visit_display = st.selectbox(
+            t("visit_status"),
+            visit_status_display_options,
+            index=v_idx,
             label_visibility="collapsed",
-            key="detail_visit_status",
+            key="detail_visit_status_widget",
         )
+        
+        # Map back
+        selected_visit_val = visit_options_map.get(selected_visit_display, "الكل")
+        if selected_visit_val != st.session_state.get("detail_visit_status"):
+             st.session_state.detail_visit_status = selected_visit_val
+             st.rerun()
+             
+    selected_visit_status = st.session_state.get("detail_visit_status", "الكل")
 
 
     with export_col:
@@ -557,9 +756,10 @@ def render_province_details(
             st.session_state.detail_page_idx = 0
             
         # We render a button with a unique label structure for CSS targeting
-        # Format: (Count) | فلاتر نشطة | مسح الكل ✕
+        # Format: (Count) | Active Filters | Clear All ✕
+        label = f"{active_filters_count} | {t('active_filters')} | {t('clear_all')} ✕"
         st.button(
-            f"{active_filters_count} | فلاتر نشطة | مسح الكل ✕", 
+            label, 
             key="hud_pill_native_btn", 
             on_click=reset_filters_native
         )
@@ -589,17 +789,19 @@ def render_province_details(
     # Apply visit status filter
     if selected_visit_status and selected_visit_status != "الكل" and "حالة الزيارة" in df_filtered.columns:
         if selected_visit_status == "تمت الزيارة":
-            # Match strictly "تمت الزيارة..." which includes the date
-            df_filtered = df_filtered[df_filtered["حالة الزيارة"].astype(str).str.startswith("تمت الزيارة")].copy()
+            # Match any status that is NOT "No" (Visited)
+            # This covers "Visited on date..." and "Visited (unspecified)" in both languages
+            df_filtered = df_filtered[df_filtered["حالة الزيارة"] != t("no")].copy()
         elif selected_visit_status == "لم تتم الزيارة":
-            df_filtered = df_filtered[df_filtered["حالة الزيارة"] == "لا"].copy()
+            # Match exactly "No"
+            df_filtered = df_filtered[df_filtered["حالة الزيارة"] == t("no")].copy()
 
     # Calculate pagination based on filtered data
     total_rows = len(df_filtered)
     
     # Update title with filtered count
     title_placeholder.markdown(
-        f"<h4 style='margin-top: 10px; margin-bottom: 0;'>قائمة المساجد المتجاوزة <span style='font-size: 0.8em; color: #2b5d4a;'>({total_rows})</span></h4>",
+        f"<h4 style='margin-top: 10px; margin-bottom: 0;'>{t('violating_mosques_list')} <span style='font-size: 0.8em; color: #2b5d4a;'>({total_rows})</span></h4>",
         unsafe_allow_html=True
     )
     
@@ -668,7 +870,7 @@ def render_province_details(
         # Format links as Excel hyperlinks if column exists
         if "الموقع" in export_df.columns:
             export_df["الموقع"] = export_df["الموقع"].apply(
-                lambda x: f'=HYPERLINK("{x}", "رابط الموقع")' if isinstance(x, str) and x.strip() else ""
+                lambda x: f'=HYPERLINK("{x}", "{t("location_link")}")' if isinstance(x, str) and x.strip() else ""
             )
         
         # Generate timestamp for filename
@@ -679,7 +881,7 @@ def render_province_details(
         export_df.to_csv(export_bytes, index=False, encoding="utf-8-sig")
         export_bytes.seek(0)
         st.download_button(
-            " تصدير",
+            f" {t('export')}",
             data=export_bytes,
             file_name=f"{ar_province}_{selected_quarter}_{timestamp}.csv",
             mime="text/csv",
@@ -722,9 +924,9 @@ def render_province_details(
             try:
                 # Format with commas, no decimals
                 val_float = float(value)
-                text = f"{int(val_float):,} ريال"
+                text = f"{int(val_float):,} {t('riyal')}"
             except (ValueError, TypeError):
-                text = f"{value} ريال"
+                text = f"{value} {t('riyal')}"
         else:
             text = str(value)
         
@@ -737,18 +939,19 @@ def render_province_details(
 
     # Add clickable links
     q_enc, prov_enc = quote_plus(selected_quarter), quote_plus(province_param)
+    current_lang_param = "en" if is_english() else "ar"
     meter_column = "رقم العداد"
     if meter_column in slice_df.columns:
         plain_series = slice_df[meter_column].astype(str)
         display_series = slice_render_df[meter_column].astype(str)
         slice_render_df[meter_column] = [
-            f'<a href="?meter={quote_plus(plain)}&quarter={q_enc}&province={prov_enc}" target="_self">{display}</a>'
+            f'<a href="?meter={quote_plus(plain)}&quarter={q_enc}&province={prov_enc}&lang={current_lang_param}" target="_self">{display}</a>'
             for plain, display in zip(plain_series, display_series)
         ]
 
     if "الموقع" in slice_df.columns:
         slice_render_df["الموقع"] = [
-            f'<a href="{link}" target="_blank" title="عرض الموقع">رابط الموقع</a>' if isinstance(link, str) and link.strip() else ""
+            f'<a href="{link}" target="_blank" title="{t("view_location")}">{t("location_link")}</a>' if isinstance(link, str) and link.strip() else ""
             for link in slice_df["الموقع"]
         ]
 
@@ -756,14 +959,19 @@ def render_province_details(
     display_df = slice_render_df.drop(columns=["المحافظة_الورقة"], errors="ignore")
 
     # Build table HTML with proper thead/tbody for sticky headers
-    header_html = "".join(f"<th>{col}</th>" for col in display_df.columns)
+    # Map arabic column names to translated headers
+    # COL_TRANSLATION_MAP is defined at module level now
+    
+    header_html = "".join(f"<th>{t(COL_TRANSLATION_MAP.get(col, col), default=col)}</th>" for col in display_df.columns)
     rows_html = ""
     for _, row in display_df.iterrows():
         cells = "".join(f"<td>{val}</td>" for val in row)
         rows_html += f"<tr>{cells}</tr>"
     
+    # Dynamic direction for table wrapper
+    wrapper_dir = "ltr" if is_english() else "rtl"
     html_table = f'<table class="nice-table" id="province-table"><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>'
-    st.markdown(f'<div class="tbl-card"><div class="tbl-scroll">{html_table}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="tbl-card" style="direction: {wrapper_dir};"><div class="tbl-scroll">{html_table}</div></div>', unsafe_allow_html=True)
     
     # Add resizable columns functionality using components.html
     import streamlit.components.v1 as components
@@ -876,7 +1084,7 @@ def render_province_details(
                     font-weight: 500;
                     margin-left: 10px;
                 '>
-                    عرض {start_row:,}-{end_row:,} من {total_rows:,}
+                    {t("showing_rows", start=f"{start_row:,}", end=f"{end_row:,}", total=f"{total_rows:,}")}
                 </div>""",
                 unsafe_allow_html=True
             )
@@ -886,12 +1094,12 @@ def render_province_details(
             r1, r2 = st.columns([0.7, 1.3], gap="small") 
             with r1:
                 st.markdown(
-                    "<div style='display:flex;align-items:center;height:40px;justify-content:flex-end;font-size:13px;color:#666;'>صف:</div>",
+                    f"<div style='display:flex;align-items:center;height:40px;justify-content:flex-end;font-size:13px;color:#666;'>{t('rows_label')}</div>",
                     unsafe_allow_html=True
                 )
             with r2:
                 new_rows = st.selectbox(
-                    "صفوف",
+                    t("rows_per_page"),
                     [10, 25, 50, 100],
                     index=[10, 25, 50, 100].index(st.session_state.get("detail_rows_per_page", 50)),
                     key="_detail_rows_compact",
@@ -906,7 +1114,7 @@ def render_province_details(
             # Navigation group with a very little gap
             n1, n2, n3 = st.columns([1, 0.6, 1], gap="small")
             with n1:
-                if st.button("التالي", disabled=next_disabled, key="detail_next_compact"):
+                if st.button(t("next"), disabled=next_disabled, key="detail_next_compact"):
                     st.session_state.detail_page_idx += 1
                     st.rerun()
             with n2:
@@ -915,7 +1123,7 @@ def render_province_details(
                     unsafe_allow_html=True
                 )
             with n3:
-                if st.button("السابق", disabled=prev_disabled, key="detail_prev_compact"):
+                if st.button(t("previous"), disabled=prev_disabled, key="detail_prev_compact"):
                     st.session_state.detail_page_idx -= 1
                     st.rerun()
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import streamlit as st
 
+from i18n import t, get_language, toggle_language, is_english
+
 # Path to assets directory
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
 
@@ -32,6 +34,18 @@ def render_header() -> None:
     if not img_base64:
         return
 
+    # Get current language for toggle button
+    lang = get_language()
+    # If current is Arabic, button should show "EN" to switch to English
+    # If current is English, button should show "عربي" to switch to Arabic
+    lang_label = "EN" if lang == "ar" else "عربي"
+    new_lang = "en" if lang == "ar" else "ar"
+    # lang_flag removed as requested
+    # Build toggle URL
+    current_params = dict(st.query_params)
+    current_params["lang"] = new_lang
+    params_str = "&".join(f"{k}={v}" for k, v in current_params.items())
+    toggle_url = f"?{params_str}"
     
     # 2. Render fixed overlay using CSS background-image
     # This prevents the "image reload" flicker by letting the browser cache the style
@@ -41,41 +55,49 @@ def render_header() -> None:
             <div class="ministry-logo-overlay"></div>
         </a>
         
+        <!-- Language Toggle Button - Anchor wraps Div for clickability + style -->
+        <a href="{toggle_url}" target="_self" style="text-decoration: none; border: none;">
+            <div title="Switch Language" class="lang-btn-custom">
+                {lang_label}
+            </div>
+        </a>
         
         <!-- Contact Us Button with CSS checkbox trick for click toggle -->
         <input type="checkbox" id="contactToggle" class="contact-toggle-checkbox">
-        <label for="contactToggle" class="contact-header-btn">تواصل معنا</label>
+        <label for="contactToggle" class="contact-header-btn">{t("contact_us")}</label>
         <label for="contactToggle" class="contact-backdrop"></label>
         <div class="contact-popup">
             <label for="contactToggle" class="close-btn">✕</label>
-            <h4>تواصل معنا</h4>
+            <h4>{t("contact_us")}</h4>
             <div class="contact-row" style="margin-bottom: 5px;">
-                <span class="contact-label">الإدارة:</span>
-                <span class="contact-value">الإدارة العامة للذكاء الاصطناعي وتطوير الاعمال</span>
+                <span class="contact-label">{t("department")}:</span>
+                <span class="contact-value">{t("dept_name")}</span>
             </div>
             <div class="contact-row">
-                <span class="contact-label">البريد الإلكتروني:</span>
+                <span class="contact-label">{t("email")}:</span>
                 <a href="mailto:AI@moenergy.gov.sa" class="contact-link">AI@moenergy.gov.sa</a>
             </div>
             <div class="contact-divider"></div>
             <div class="contact-row">
-                <span class="contact-label">الاسم:</span>
-                <span class="contact-value">نواف العصيمي</span>
+                <span class="contact-label">{t("name")}:</span>
+                <span class="contact-value">{"Nawaf Alosaimi" if is_english() else "نواف العصيمي"}</span>
             </div>
             <div class="contact-row">
-                <span class="contact-label">البريد الإلكتروني:</span>
+                <span class="contact-label">{t("email")}:</span>
                 <a href="mailto:Nawaf.Alosaimi@moenergy.gov.sa" class="contact-link">Nawaf.Alosaimi@moenergy.gov.sa</a>
             </div>
             <div class="contact-divider"></div>
             <div class="contact-row">
-                <span class="contact-label">الاسم:</span>
-                <span class="contact-value">عبد الرحمن السلوم</span>
+                <span class="contact-label">{t("name")}:</span>
+                <span class="contact-value">{"Abdulrahman Alsallum" if is_english() else "عبد الرحمن السلوم"}</span>
             </div>
             <div class="contact-row">
-                <span class="contact-label">البريد الإلكتروني:</span>
+                <span class="contact-label">{t("email")}:</span>
                 <a href="mailto:Abdulrahman.Sallum@moenergy.gov.sa" class="contact-link">Abdulrahman.Sallum@moenergy.gov.sa</a>
             </div>
         </div>
+
+
         
         <style>
             /* Hide Streamlit toolbar actions (Deploy, etc) - Reinforced */
@@ -173,6 +195,65 @@ def render_header() -> None:
                 border-color: #d4cbb3;
             }}
             
+            /* Language Button Custom Style */
+            /* Language Button Custom Style */
+            .lang-btn-custom {{
+                position: fixed;
+                top: 12px;
+                right: 130px;
+                z-index: 999999;
+                background: #F4EFE2;
+                color: #1a2f29;
+                border: 1px solid #e1d9c6;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-family: 'Tajawal', sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                display: inline-block;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                width: auto;
+                line-height: normal;
+                transition: all 0.2s ease;
+            }}
+            
+            .lang-btn-custom:hover {{
+                background: #ebe4d1;
+                border-color: #d4cbb3;
+            }}
+            
+            /* Language Toggle Button - positioned left of Contact Us */
+            .lang-toggle-btn,
+            a.lang-toggle-btn,
+            a.lang-toggle-btn:link,
+            a.lang-toggle-btn:visited {{
+                position: fixed !important;
+                top: 12px !important;
+                right: 120px !important;
+                z-index: 999999 !important;
+                background: #0B9444 !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 8px !important;
+                padding: 8px 14px !important;
+                font-family: 'Tajawal', sans-serif !important;
+                font-size: 13px !important;
+                font-weight: 600 !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+                text-decoration: none !important;
+                display: inline-block !important;
+            }}
+            
+            .lang-toggle-btn:hover,
+            a.lang-toggle-btn:hover,
+            a.lang-toggle-btn:active {{
+                background: #087836 !important;
+                text-decoration: none !important;
+                color: white !important;
+            }}
+            
             .contact-popup {{
                 display: none;
                 position: fixed;
@@ -185,8 +266,8 @@ def render_header() -> None:
                 min-width: 300px;
                 box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
                 font-family: 'Tajawal', sans-serif;
-                direction: rtl;
-                text-align: right;
+                direction: {"ltr" if is_english() else "rtl"};
+                text-align: {"left" if is_english() else "right"};
             }}
             
             /* Show popup when checkbox is checked */
@@ -222,10 +303,11 @@ def render_header() -> None:
             
             .contact-popup .contact-row {{
                 display: flex;
-                justify-content: space-between;
+                justify-content: {"flex-start" if is_english() else "space-between"};
                 align-items: center;
                 margin-bottom: 10px;
                 padding: 4px 0;
+                gap: {"10px" if is_english() else "0"};
             }}
             
             .contact-popup .contact-label {{
@@ -257,12 +339,43 @@ def render_header() -> None:
                 margin: 12px 0;
             }}
             
-            /* Responsive: Mobile - adjust logo */
+            /* Language Toggle Button */
+            .lang-toggle-btn {{
+                position: fixed;
+                top: 12px;
+                right: 130px;
+                z-index: 999999;
+                background: #0B9444;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 14px;
+                font-family: 'Tajawal', sans-serif;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }}
+            
+            .lang-toggle-btn:hover {{
+                background: #087836;
+            }}
+            
+            /* Responsive: Mobile - adjust logo and buttons */
             @media (max-width: 768px) {{
                 .ministry-logo-link {{
                     left: 25px !important;
                     width: 120px !important;
                     height: 35px !important;
+                }}
+                
+                .lang-toggle-btn {{
+                    right: 110px;
+                    padding: 6px 10px;
+                    font-size: 12px;
                 }}
             }}
         </style>
