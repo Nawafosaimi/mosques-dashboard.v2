@@ -333,7 +333,7 @@ def render_province_details(
                 title=t("total_mosques_province", province=province_param if is_english() else ar_province),
                 value=f"{total_mosques:,}",
                 delta_html=mosques_delta_html,
-                tooltip=t("total_mosques") # Using generic tooltip or keeping specific? Let's use generic for now or specific key
+                tooltip=t("total_mosques_province", province=province_param if is_english() else ar_province)
             )
 
         with k2:
@@ -597,7 +597,7 @@ def render_province_details(
                     index=0,
                     disabled=True,
                     label_visibility="collapsed",
-                    key="detail_sheet_filter",
+                    key="detail_sheet_filter_disabled",
                 )
                 # Ensure state is consistent
                 # Ensure state is consistent
