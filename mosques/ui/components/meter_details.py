@@ -75,13 +75,17 @@ def render_meter_details(
             params = {}
             # Capture view mode if present
             view_mode = st.query_params.get("view")
+            # Preserve language
+            lang_param = "en" if is_english() else "ar"
 
             if province_param:
-                params = {"province": province_param, "quarter": quarter_param}
+                params = {"province": province_param, "quarter": quarter_param, "lang": lang_param}
                 if view_mode == "map":
                     params["view"] = "map"
             elif quarter_param:
-                params = {"quarter": quarter_param}
+                params = {"quarter": quarter_param, "lang": lang_param}
+            else:
+                params = {"lang": lang_param}
             st.query_params.clear()
             if params:
                 st.query_params.update(**params)
@@ -191,7 +195,7 @@ def render_meter_details(
                     <div>
                         <div class='meter-label'>{t("total_consumption")}</div>
                         <div class='meter-value highlight'>{int(total_bill):,} {t("riyal")}</div>
-                        <div style='font-size: 11px; color: #8a7a63; margin-top: 2px;'>{t("consumption_period_note")}</div>
+                        <div style='font-size: 11px; color: #8a7a63; margin-top: 2px;'>{t("consumption_period_note", start_quarter=get_quarter_name(config.QUARTERS[0]), end_quarter=get_quarter_name(config.QUARTERS[-1]))}</div>
                     </div>
                     <div>
                         <div class='meter-label'>{t("visit_status")}</div>

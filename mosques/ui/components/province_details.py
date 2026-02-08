@@ -754,6 +754,11 @@ def render_province_details(
             st.session_state.detail_period = "الكل"
             st.session_state.detail_visit_status = "الكل"
             st.session_state.detail_page_idx = 0
+            # Clear widget-specific keys to ensure UI reflects reset state
+            for key in ["detail_sheet_filter_widget", "detail_governorate_widget", 
+                        "detail_period_widget", "detail_visit_status_widget"]:
+                if key in st.session_state:
+                    del st.session_state[key]
             
         # We render a button with a unique label structure for CSS targeting
         # Format: (Count) | Active Filters | Clear All ✕

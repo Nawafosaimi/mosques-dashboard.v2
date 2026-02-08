@@ -50,7 +50,7 @@ TRANSLATIONS = {
         "meter_details_of": "تفاصيل {item}",
         "meter_label": "العداد: {id}",
         "total_consumption": "إجمالي الاستهلاك",
-        "consumption_period_note": "(من الربع الرابع 2024 إلى الربع الثالث 2025)",
+        "consumption_period_note": "(من {start_quarter} إلى {end_quarter})",
         "visit_date": "تاريخ الزيارة",
         "causes": "المسببات",
         "no_meter_data": "لا توجد بيانات تعريفية لهذا العداد.",
@@ -257,14 +257,14 @@ TRANSLATIONS = {
         "export": "Export",
         "active_filters": "Active Filters",
         "clear_all": "Clear All",
-        "violating_mosques_list": "Violating Mosques List",
-        "no_violation_data": "No violation data available for {quarter}",
+        "violating_mosques_list": "Suspected Mosques List",
+        "no_violation_data": "No suspected mosques data available for {quarter}",
         
         # Meter Details
         "meter_details_of": "Details of {item}",
         "meter_label": "Meter: {id}",
         "total_consumption": "Total Consumption",
-        "consumption_period_note": "(From Q4 2024 to Q3 2025)", # This assumes fixed period as per code
+        "consumption_period_note": "(From {start_quarter} to {end_quarter})", # Dynamic
         "visit_date": "Visit Date",
         "causes": "Causes",
         "no_meter_data": "No identification data found for this meter.",
@@ -276,11 +276,11 @@ TRANSLATIONS = {
         "open_google_maps": "Open in Google Maps",
         "no_coordinates": "No coordinates available.",
         "quarter_summary": "Quarter Summary",
-        "is_violating": "Violating?",
-        "morning_violation_pct": "Morning Violation %",
-        "evening_violation_pct": "Evening Violation %",
+        "is_violating": "Suspected?",
+        "morning_violation_pct": "Morning Suspicion %",
+        "evening_violation_pct": "Evening Suspicion %",
         "total_consumption_per_quarter": "Total Consumption per Quarter",
-        "chart_note_zero": "* If value is 0, it means no violations were detected in that quarter.",
+        "chart_note_zero": "* If value is 0, it means no suspected activity was detected in that quarter.",
         "consumption_value": "Consumption Value",
         "quarter": "Quarter",
         "from_month_to_month": "(from {start} to {end})",
@@ -290,7 +290,7 @@ TRANSLATIONS = {
         "meter_number": "Meter Number",
         "morning_evening_period": "Morning/Evening Period",
         "total_consumption_value": "Total Consumption Value",
-        "previously_violating": "Previously Violating",
+        "previously_violating": "Previously Suspected",
         "location": "Location",
         "location_link": "Location Link",
         "view_location": "View Location",
@@ -313,18 +313,18 @@ TRANSLATIONS = {
         # Province Map
         "display_range": "Display Range",
         "show_mosques": "Show Mosques",
-        "violators_only": "Violators Only",
+        "violators_only": "Suspected Only",
         "all_mosques": "All Mosques",
         "select_quarter": "Select Quarter",
         "all_quarters": "All Quarters",
-        "non_violator": "Non-Violator",
-        "violator_visited": "Violator (Visited)",
-        "violator_not_visited": "Violator (Not Visited)",
+        "non_violator": "Non-Suspected",
+        "violator_visited": "Suspected (Visited)",
+        "violator_not_visited": "Suspected (Not Visited)",
         "in_progress_status": "In Progress", # "in_progress" exists with hourglass
         "more_details": "More Details",
         "google_maps": "Google Maps",
         "map_layer_mosques": "Mosques",
-        "no_violator_data": "No violator data available",
+        "no_violator_data": "No suspected mosques data available",
         "status": "Status",
         
         # Domain / Services
@@ -337,9 +337,9 @@ TRANSLATIONS = {
         # KPI labels
         "total_mosques": "Total Mosques in the Kingdom of Saudi Arabia",    
         "total_mosques_province": "Mosques in {province}",
-        "violating_mosques": "Violating Mosques",
-        "violating_mosques_quarter": "Violating Mosques in {quarter}",
-        "violating_mosques_riyadh": "Violating Mosques in Riyadh Province",
+        "violating_mosques": "Suspected Mosques",
+        "violating_mosques_quarter": "Suspected Mosques in {quarter}",
+        "violating_mosques_riyadh": "Suspected Mosques in Riyadh Province",
         
         # Quarter-related
         "select_quarter": "Select Quarter",
@@ -354,17 +354,17 @@ TRANSLATIONS = {
         # Chart titles
         "regional_distribution": "Mosque Distribution by Region",
         "admin_regions_map": "Administrative Regions Map",
-        "violators_by_quarter": "Violators by Quarter in Riyadh Province",
+        "violators_by_quarter": "Suspected Mosques by Quarter in Riyadh Province",
         "num_mosques": "Number of Mosques",
-        "violating_mosques_count": "Number of Violating Mosques",
+        "violating_mosques_count": "Number of Suspected Mosques",
         "the_quarter": "Quarter",
         "percentage": "Percentage %",
         
         # Status labels
-        "violators": "Violators",
-        "non_violators": "Non-Violators",
+        "violators": "Suspected",
+        "non_violators": "Non-Suspected",
         "region": "Region",
-        "violators_count": "Violator Count",
+        "violators_count": "Suspected Count",
         "mosques_visited": "Visited Mosques",
         
         # Pagination
